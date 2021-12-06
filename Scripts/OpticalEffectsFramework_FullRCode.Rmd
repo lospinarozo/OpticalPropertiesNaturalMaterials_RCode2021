@@ -1,0 +1,3007 @@
+---
+title: "A framework to characterise optical properties of natural objects - Supplementary Material"
+author: "Authors: Removed for double blind review"
+date: "10/11/2021"
+output:
+  
+  pdf_document:
+    toc: true
+    toc_depth: 5
+    df_print: kable
+    highlight: tango
+    
+  html_document: 
+    toc: yes
+    toc_float: yes
+    toc_depth: 5
+    highlight: tango
+    theme: paper
+    self_contained: yes
+    mode: selfcontained
+
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Introduction
+
+This document contains the general procedure to extract the 9 spectral parameters, along with the other analysis in the paper. Our code helps describe diverse spectral shapes and optical effects in visible and near infrared (NIR). The following code is written in the R programming language.
+
+For each of the spectral parameters we first show the general form of the code needed to extract it, followed by a worked example with Christmas beetles. 
+
+
+# Libraries
+
+```{r warning = FALSE, message = FALSE}
+
+# Data wrangling
+library(tidyverse) # for data wrangling
+library(dplyr) # for data wrangling
+library(readr) # for data wrangling
+
+# Process Spectral Data
+library(pavo) # To process spectral data
+library(DescTools) # To use the function AUC
+library(ggplot2)  # For graphs
+library(kableExtra) # To style tables in the HTML file
+
+# for repeatability analysis
+library(rptR) # For repeatability analysis
+library(abd) # may be required to install rptR
+library(mosaic) # may be required to install abd
+
+# For PCA
+library(Hmisc) # To obtain p values of correlations
+library(psych) # For PCA 
+library(plot.matrix) # For plot Matrix in the supplementary
+library(RColorBrewer) # palette
+library(gridExtra) # join plots
+
+```
+
+
+# Data
+
+Import raw data and create appropriate subsets:
+
+Hemispherical Reflectance Data 
+
+```{r warning = FALSE, message = FALSE}
+# Sphere raw spectral data
+ sphRawData <- read_csv("../Data/1.RawSpectraSphereData.csv") 
+ sphRawData <- as.rspec(sphRawData) # Convert to spectral data
+ sphAvgData <- aggspec(sphRawData, by = 4, FUN = mean) # Mean of repetitions
+ names(sphAvgData) <- (substr(names(sphAvgData), 1, 4)) # remove suffix
+
+# Full spectrum 400 to 1400nm
+ spha <-
+   sphAvgData %>% 
+   filter(wl >= 400 & wl <= 1400)
+
+# Limit the range to visible
+ sphmv <-
+   sphAvgData %>% 
+   filter(wl >= 400 & wl <= 700) 
+
+# Limit the range to NIR
+ sphir <-
+   sphAvgData %>% 
+   filter(wl >= 700 & wl <= 1400) 
+ 
+```
+
+Directional Reflectance Data
+
+```{r warning = FALSE, message = FALSE}
+# Dual spec raw spectral data
+ dualRawData <- read_csv("../Data/2.RawSpectraSpecData.csv")  
+ dualRawData <- as.rspec(dualRawData) # Convert to spectral data
+ dualAvgData <- aggspec(dualRawData, by = 3, FUN = mean) # Mean of repetitions
+
+# Full spectrum 400 to 1400nm
+ duala<-
+   dualAvgData %>% 
+   filter(wl>=400 & wl<=1400)
+ 
+# Limit the range to visible
+ dualv<-
+   dualAvgData %>% 
+   filter(wl>=400 & wl<=700)
+ 
+# Limit the range to NIR
+ dualir<-
+   dualAvgData %>% 
+   filter(wl>=700 & wl<=1400)
+ 
+# Fixed Bisector Set - Visible
+ FixBsec <-
+   dualAvgData %>% 
+   filter(wl >= 400 & wl <= 700) %>% # visible range
+   select(wl, contains("bsec")) # keep the bisector set only
+ names(FixBsec) <- substr(names(FixBsec), 1, 10) # remove suffix
+
+# Fixed Bisector Set - NIR
+ FixBsecN <-
+   dualAvgData %>% 
+   filter(wl >= 700 & wl <= 1400) %>% # NIR range
+   select(wl, contains("bsec")) # keep the bisector set only
+ names(FixBsecN) <- substr(names(FixBsecN), 1, 10) # remove suffix
+ 
+# Fixed Span Set - Visible
+ FixSpan <-
+   dualAvgData %>% 
+   filter(wl >= 400 & wl <= 700) %>% # visible range
+   select(wl, contains("span")) # keep the span set only
+ names(FixSpan) <- substr(names(FixSpan), 1, 11) # remove suffix
+
+# Fixed Span Set - NIR
+ FixSpanN <-
+   dualAvgData %>% 
+   filter(wl >= 700 & wl <= 1400) %>% # NIR range
+   select(wl, contains("span")) # keep the span set only
+ names(FixSpanN) <- substr(names(FixSpanN), 1, 11) # remove suffix
+ 
+# Subset for Peak Width
+ PeakSub <-
+   FixBsec %>% 
+   select(wl, contains("20"))
+ 
+```
+
+Variables extracted from the data frame labels. 
+
+```{r}
+
+# Species Code
+ SphereSpp   <- substr(names(spha)[2 : length(names(spha))], 1, 4) 
+ FixBsecSpp  <- substr(names(FixBsec)[2 : length(names(FixBsec))], 1, 4)
+ FixSpanSpp  <- substr(names(FixSpan)[2 : length(names(FixSpan))], 1, 4)
+
+# Angles
+
+ FixBsecAngles <- 
+   names(FixBsec)[2 : length(FixBsec)] %>% 
+   gsub("[[:lower:]]", "", .) %>% 
+   as.numeric() 
+ 
+ FixBsecAngles <- FixBsecAngles*2 # Since the notation referred to half span
+
+ FixSpanAngles <-
+   names(FixSpan)[2 : length(FixSpan)] %>% 
+   gsub("^.{8}", "", .) %>%  # remove the first 8 characters 
+   gsub(  "\\.", "", .) %>%  # remove the dot (meant positive angles)
+   gsub(  "_", "-" , .) %>%  # replace _ with - (meant negative angles)
+   as.numeric (.)
+   
+ GaussAngles <- FixSpanAngles/2 # divide by 2 (Grusson et al. 2019)
+ 
+```
+
+Note that this section can vary depending on the names of the columns. 
+
+For hemispherical reflectance we used:\ 
+Column 1 = "wl" = wavelength (nm) \  
+Other columns (reflectance per wavelength %):\  
+Example "aurs1" =  _A. aureus_, replica 1    
+
+The first 4 characters indicate the species + the number indicates the repetition. We obtained 4 repetitions per species. 
+
+For directional reflectance we used: \ 
+Column 1 = "wl" = wavelength (nm) \ 
+Other columns (reflectance per wavelength %):\ 
+Example "fchibsec10r1" = _C. frenchii_ in the fixed bisector set, at 20 degrees span, replica 1. \ 
+Example "fchispan_20r3" = _C. frenchii_ in the fixed span set, bisector at -20 degrees, replica 3. \ 
+
+The first 4 characters indicate the species + the next 4 characters refer to the name of the directional reflectance set ("bsec" for fixed bisector and "span" for fixed span) + angle + r + a number indicating the repetition.  We obtained 3 repetitions per geometry per species. 
+
+For the fixed bisector set, the angle included in the label is half span. For the fixed span set, the angle is the position of the bisector around the normal. We used `_` to indicate a negative angle and `.` to indicate a positive angle, to avoid the use of special characters in the labels while still keeping a uniform number of characters for easy subsetting. 
+
+The equivalent scientific names for the 4 letters codes used here to refer to the beetle species are in Supplementary Materials Table 1
+
+
+# VIS Parameters
+
+## 1. Number of Peaks
+
+This parameter can be calculated by exploring each spectrum with the function `explorespec(dataframe)`(PAVO >= 2.7.0). We calculated this parameter manually due to the diversity in our samples following these criteria: 
+
+1) We determined the number of peaks evident in most of the measurements of both hemispheric and directional reflectance. This is because the diffuse component in the hemispherical reflectance spectra can reduce the saturation of the peaks, sometimes masking them.
+
+2) The number of peaks in different geometries of directional reflectance spectra, should be the same, unless the mean reflectance (in the vertical axis) is close to 0.
+
+3) Two peaks are consider independent (rather than one wide peak with two maximum values) if they present variations in total reflectance (vertical axis in the spectra) when changing geometry in directional reflectance (dual spec).
+
+*General Format*
+
+```{r eval=FALSE}
+
+# Hemispherical reflectance
+# Change the second number to see different species
+explorespec(sphmv[ , c(1, 2)])  
+
+# Directional reflectance
+# Change the range to see different species
+explorespec(dualv[ , c(1, 2:13)])  
+
+# [] indicate position [rows,columns]. 
+# Columns always include 1 = wavelength (horizontal axis)  
+
+```
+
+*Worked example with Christmas beetles:* 
+
+```{r results = "hide"}
+
+num_peak<-c(2, 1, 1, 1, 1, 0, 1, 2, 1, 1,
+            1, 1, 1, 1, 1, 0, 0, 2, 1, 1,
+            1, 2, 0, 1, 1, 0, 0, 1, 1, 2,
+            1, 1, 0, 0, 1)
+
+data.frame(SphereSpp,num_peak) # Visualize in a table
+
+```
+
+
+## 2. Spectral Location
+
+This parameter is defined as the wavelength at half reflectance for the hemispherical reflectance profiles. It can be obtained using the function `peakshape(rspec_object)` (PAVO >= 2.7.0) as folows:
+
+*General Format*
+
+```{r eval=FALSE}
+
+# General form
+SpectralLocationSp1 <- 
+  peakshape(rspec_object)$H1 -  # Wavelength at maximum reflectance
+    peakshape(rspec_object)$HWHM.l  # left half width of the peak
+
+# Automated form
+Base_PS <- peakshape(rspec_object)
+SpecLocLoop <- Base_PS$H1 - Base_PS$HWHM.l
+
+```
+
+The substraction is required to choose the shorter wavelength side of the peak.
+
+*Things to look out for*
+
+The automated form is likely to work only if the samples in the data frame have one (1) clearly defined peak. Since our sample contained a wide variety of spectral shapes, we repeated the general formula for each species manually. 
+
+This approach is appropriate when evaluating one spectral profile per species (in our case 35 spectra). For bigger sets of data, it is better to group the spectra in subsets according to the wavelength range that has to be considered (see statements below), and then apply the automated form on each subset. This is the solution we implemented for the spectral location of the Fixed Bisector set, i.e. 175 spectra (see section 6.Iridescence).
+
+We applied corrections when needed following these statements: 
+
+- For peaked spectra: apply as it is
+  
+- For multi-peaked spectra: limit the wavelength range to consider the peak with shorter wavelength. 
+
+- For sigmoidal spectra: the term H1 will always be the upper limit of the visible wavelength range 700 nm. 
+
+- For spectra with a clear peak in visible and high NIR reflectance: Limit the wavelength range to consider the peak with shorter wavelength. The high red content is captured in other parameters
+
+*Worked example with Christmas beetles:* 
+
+```{r results = "hide", fig.show="hide"}
+
+SpecLoc_vis<-as.numeric(c(
+  
+  peakshape(sphmv[, c(1, 2)])$H1-
+  peakshape(sphmv[, c(1, 2)])$HWHM.l,#fchi
+  
+  peakshape(sphmv[sphmv$wl <= 650, c(1, 3)])$H1-
+  peakshape(sphmv[sphmv$wl <= 650, c(1, 3)])$HWHM.l, #gray
+  
+  peakshape(sphmv[ , c(1, 4)])$H1 -
+  peakshape(sphmv[ , c(1, 4)])$HWHM.l, #pvul
+  
+  peakshape(sphmv[ , c(1, 5)])$H1-
+  peakshape(sphmv[ , c(1, 5)])$HWHM.l,#aurs
+  
+  peakshape(sphmv[ , c(1, 6)])$H1-
+  peakshape(sphmv[ , c(1, 6)])$HWHM.l,#reps
+  
+  peakshape(sphmv[ , c(1, 7)])$H1-
+  peakshape(sphmv[ , c(1, 7)])$HWHM.l, #lats 
+  
+  peakshape(sphmv[ , c(1, 8)])$H1-
+  peakshape(sphmv[ , c(1, 8)])$HWHM.l, #ecry
+  
+  peakshape(sphmv[ , c(1, 9)])$H1-
+  peakshape(sphmv[ , c(1, 9)])$HWHM.l, #vrid
+  
+  peakshape(sphmv[ , c(1, 10)])$H1-
+  peakshape(sphmv[ , c(1, 10)])$HWHM.l, #clor 
+  
+  peakshape(sphmv[ , c(1, 11)])$H1-
+  peakshape(sphmv[ , c(1, 11)])$HWHM.l, #neus
+  
+  peakshape(sphmv[sphmv$wl <= 650, c(1, 12)])$H1-
+  peakshape(sphmv[sphmv$wl <= 650, c(1, 12)])$HWHM.l, ## prsi 
+  
+  peakshape(sphmv[sphmv$wl <= 650, c(1, 13)])$H1-
+  peakshape(sphmv[sphmv$wl <= 650, c(1, 13)])$HWHM.l, #xyln 
+  
+  peakshape(sphmv[ , c(1, 14)])$H1-
+  peakshape(sphmv[ , c(1, 14)])$HWHM.l, #smgg
+  
+  peakshape(sphmv[sphmv$wl <= 550, c(1, 15)])$H1-
+  peakshape(sphmv[sphmv$wl <= 550, c(1, 15)])$HWHM.l, #smgp
+  
+  peakshape(sphmv[ , c(1, 16)])$H1-
+  peakshape(sphmv[ , c(1, 16)])$HWHM.l, #smgr
+  
+  peakshape(sphmv[ , c(1, 17)])$H1-
+  peakshape(sphmv[ , c(1, 17)])$HWHM.l, #rugo 
+  
+  peakshape(sphmv[ , c(1, 18)])$H1-
+  peakshape(sphmv[ , c(1, 18)])$HWHM.l, #pali 
+  
+  peakshape(sphmv[ , c(1, 19)])$H1-
+  peakshape(sphmv[ , c(1, 19)])$HWHM.l, #punc
+  
+  peakshape(sphmv[ , c(1, 20)])$H1-
+  peakshape(sphmv[ , c(1, 20)])$HWHM.l, #pind 
+  
+  peakshape(sphmv[ , c(1, 21)])$H1-
+  peakshape(sphmv[ , c(1, 21)])$HWHM.l, #por1
+  
+  peakshape(sphmv[ , c(1, 22)])$H1-
+  peakshape(sphmv[ , c(1, 22)])$HWHM.l,#por2
+  
+  peakshape(sphmv[sphmv$wl <= 600, c(1, 23)])$H1-
+  peakshape(sphmv[sphmv$wl <= 600, c(1, 23)])$HWHM.l, #rina 
+  
+  peakshape(sphmv[ , c(1, 24)])$H1-
+  peakshape(sphmv[ , c(1, 24)])$HWHM.l,#roci 
+  
+  peakshape(sphmv[ , c(1, 25)])$H1-
+  peakshape(sphmv[ , c(1, 25)])$HWHM.l, #tars
+  
+  peakshape(sphmv[ , c(1, 26)])$H1-
+  peakshape(sphmv[ , c(1, 26)])$HWHM.l, #boid
+  
+  peakshape(sphmv[ , c(1, 27)])$H1-
+  peakshape(sphmv[ , c(1, 27)])$HWHM.l, #brown
+  
+  peakshape(sphmv[ , c(1, 28)])$H1-
+  peakshape(sphmv[ , c(1, 28)])$HWHM.l, #conc 
+  
+  peakshape(sphmv[ , c(1, 29)])$H1-
+  peakshape(sphmv[ , c(1, 29)])$HWHM.l, #macl 
+  
+  peakshape(sphmv[ , c(1, 30)])$H1-
+  peakshape(sphmv[ , c(1, 30)])$HWHM.l, #anom 
+  
+  peakshape(sphmv[ , c(1, 31)])$H1-
+  peakshape(sphmv[ , c(1, 31)])$HWHM.l, #atki
+  
+  peakshape(sphmv[ , c(1, 32)])$H1-
+  peakshape(sphmv[ , c(1, 32)])$HWHM.l, #rayn
+  
+  peakshape(sphmv[ , c(1, 33)])$H1-
+  peakshape(sphmv[ , c(1, 33)])$HWHM.l, #rep2
+  
+  peakshape(sphmv[ , c(1, 34)])$H1-
+  peakshape(sphmv[ , c(1, 34)])$HWHM.l, #opal 
+   
+  peakshape(sphmv[ , c(1, 35)])$H1-
+  peakshape(sphmv[ , c(1, 35)])$HWHM.l, #rose 
+  
+  peakshape(sphmv[sphmv$wl <= 650, c(1, 36)])$H1-
+  peakshape(sphmv[sphmv$wl <= 650, c(1, 36)])$HWHM.l #psch 
+))
+
+
+```
+
+
+## 3. Peak Width
+
+This parameter corresponds to the width of the peak at half maximum reflectance and it generally is independent of the measuring geometry. It can be calculated using the function `peakshape(rspec_object)` (PAVO >= 2.7.0) as follows:
+
+*General Format*
+
+```{r eval=FALSE}
+
+PeakWidthSp1 <- peakshape(rspec_object)$FWHM
+
+```
+
+*Things to look out for*
+
+Since this parameter should be constant across the fixed bisector set, we measured it for only one geometry of directional reflectance: 40 degrees of span in the fixed bisector set. However, this condition may change for complex structures, so in those cases, more angles may be considered. 
+
+We applied the general formula for each species considering:
+
+- For peaked spectra: apply as it is
+
+- For multi-peaked spectra: consider the average of the peak with between peaks
+
+- For sigmoidal spectra: Assign the value of 0
+
+- For cases when the peak extends beyond the 700nm boundary: we calculated the peak width as the wavelength range between the spectral location and 700nm 
+
+
+*Worked example with Christmas beetles:*
+
+```{r results = "hide", fig.show="hide"}
+
+peak_width<-c(
+ # fchi 
+ (peakshape(PeakSub[PeakSub$wl <  650, c("wl", "fchibsec20")])$FWHM +  # peak 1
+  peakshape(PeakSub[PeakSub$wl >= 640, c("wl", "fchibsec20")])$FWHM ) / # peak 2
+   2, 
+ 
+ # gray 
+ peakshape(PeakSub[ , c("wl", "graybsec20")])$FWHM, # 1 peak
+ 
+ # pvul
+ peakshape(PeakSub[ , c("wl", "pvulbsec20")])$FWHM, # 1 peak
+
+ # aurs  
+ 700 - # peak projects to the NIR
+   (peakshape(PeakSub[ , c("wl", "aursbsec20")])$H1- # Calculate spec location
+    peakshape(PeakSub[ , c("wl", "aursbsec20")])$HWHM.l), # 1 broad peak
+ 
+ # reps
+ peakshape(PeakSub[ , c("wl", "repsbsec20")])$FWHM, # 1 peak
+ 
+ # lats
+ 0, # 0 peaks
+ 
+ # ecry
+ peakshape(PeakSub[ , c("wl", "ecrybsec20")])$FWHM, # 1 peak
+ 
+ # vrid
+ ((578 - ((peakshape(PeakSub[PeakSub$wl < 578, 
+                             c("wl", "vridbsec20")])$H1)-
+          (peakshape(PeakSub[PeakSub$wl < 578, 
+                             c("wl", "vridbsec20")])$HWHM.l))) + # peak 1
+ ((peakshape(PeakSub[PeakSub$wl >= 578, 
+                     c("wl", "vridbsec20")])$H1+
+   peakshape(PeakSub[PeakSub$wl >= 578, 
+                     c("wl", "vridbsec20")])$HWHM.r) - 578 )) / # peak 2
+   2, # average
+ 
+ # clor
+ peakshape(PeakSub[ , c("wl", "clorbsec20")])$FWHM, # 1 peak
+ 
+ # neus
+ peakshape(PeakSub[ , c("wl", "neusbsec20")])$FWHM, # 1 peak
+ 
+ # prsi
+ peakshape(PeakSub[PeakSub$wl <= 650, c("wl", "prsibsec20")])$FWHM, # 1 peak 
+ 
+ # xyln
+ peakshape(PeakSub[PeakSub$wl <= 660, c("wl", "xylnbsec20")])$FWHM, # 1 peak
+ 
+ # smgg
+ 600 - (peakshape(PeakSub[PeakSub$wl <= 600,
+                          c("wl", "smggbsec20")])$H1-
+        peakshape(PeakSub[PeakSub$wl <= 600,
+                          c("wl", "smggbsec20")])$HWHM.l), # 1 peak
+ # smgp
+ peakshape(PeakSub[PeakSub$wl <= 520, 
+                   c("wl", "smgpbsec20")])$FWHM, # 1 peak
+ 
+ # smgr
+ 695 - (peakshape(PeakSub[PeakSub$wl <= 695, 
+                          c("wl", "smgrbsec20")])$H1-
+        peakshape(PeakSub[PeakSub$wl <= 695, 
+                          c("wl", "smgrbsec20")])$HWHM.l), # 1 peak
+ 
+ # rugo
+ 0, # 0 peaks
+ 
+ # pali
+ 0, # 0 peaks
+ 
+ # punc
+ ((569 - ((peakshape(PeakSub[PeakSub$wl <= 569, 
+                             c("wl", "puncbsec20")])$H1)-
+          (peakshape(PeakSub[PeakSub$wl <  569, 
+                             c("wl", "puncbsec20")])$HWHM.l))) + # peak 1
+ (peakshape(PeakSub[PeakSub$wl >= 569, 
+                    c("wl", "puncbsec20")])$FWHM)) / # peak 2
+  2, # average
+ 
+ # pind
+ peakshape(PeakSub[ ,c("wl", "pindbsec20")])$FWHM, # 1 peak
+ 
+ # pora
+ peakshape(PeakSub[ ,c("wl", "porabsec20")])$FWHM, # 1 peak
+ 
+ # porb
+ peakshape(PeakSub[ ,c("wl", "porbbsec20")])$FWHM, # 1 peak
+ 
+ # rina
+ ((496 - ((peakshape(PeakSub[PeakSub$wl < 496, 
+                             c("wl", "rinabsec20")])$H1)-
+          (peakshape(PeakSub[PeakSub$wl < 496, 
+                             c("wl", "rinabsec20")])$HWHM.l))) + # peak 1
+ (peakshape(PeakSub[ , c("wl", "rinabsec20")])$FWHM)) / # peak 2
+   2, # average
+ 
+ # roci
+ 0, # 0 peaks
+ 
+ # tars
+ peakshape(PeakSub[ ,c("wl", "tarsbsec20")])$FWHM,# 1 peak
+ 
+ # boid
+ peakshape(PeakSub[ ,c("wl", "boidbsec20")])$FWHM,# 1 peak
+ 
+ # brun
+ 0,# 0 peaks
+ 
+ # conc
+ 0,# 0 peaks
+ 
+ # macl
+ peakshape(PeakSub[ ,c("wl", "maclbsec20")])$FWHM, # 1 peak
+ 
+ # anom
+ peakshape(PeakSub[ ,c("wl", "maclbsec20")])$FWHM, # 1 peak
+ 
+ # atki
+ ((575 - ((peakshape(PeakSub[PeakSub$wl < 575, 
+                             c("wl", "atkibsec20")])$H1)-
+          (peakshape(PeakSub[PeakSub$wl < 575, 
+                             c("wl", "atkibsec20")])$HWHM.l))) + # peak 1
+ ((peakshape(PeakSub[PeakSub$wl >= 575, 
+                     c("wl", "atkibsec20")])$H1+
+   peakshape(PeakSub[PeakSub$wl >= 575, 
+                     c("wl", "atkibsec20")])$HWHM.r) - 575))/ # peak 2
+   2, # average
+ 
+ # rayn
+ peakshape(PeakSub[ , c("wl", "raynbsec20")])$FWHM, # 1 peak
+
+ # repb
+ peakshape(PeakSub[ , c("wl", "repbbsec20")])$FWHM, # 1 peak
+ 
+ # opal
+ 0, # 0 peaks
+ 
+ # rose
+ 0, # 0 peaks
+ 
+ # psch
+ 630 - (peakshape(PeakSub[PeakSub$wl <= 630, 
+                          c("wl", "pschbsec20")])$H1-
+        peakshape(PeakSub[PeakSub$wl <= 630, 
+                          c("wl", "pschbsec20")])$HWHM.l) # 1 peak
+)
+
+```
+
+## 4. Total Light
+
+This parameter refers to the total hemispherical reflectance (calculated from the integrating sphere measurements). It can be obtained using `summary(rspec_object)$B1` (PAVO >= >= 2.7.0) since this calculates the area under the curve of a spectra. 
+
+*General Format*
+
+```{r eval=FALSE}
+
+#General form
+TotalLightSp1 <- summary(rspec_object)$B1
+
+# Automated form
+BaseTL <- peakshape(rspec_object)
+TotLightLoop <- BaseTL$B1
+
+```
+
+In general it is possible to apply a function directly on the data frame to automate the process. This measurement is reliable only if each column in the data frame is the average between repetitions, to account for random error. 
+
+*Worked example with Christmas beetles:* 
+
+```{r results = "hide"}
+
+Base_TL <- summary(sphmv) # obtain summary spectral parameters
+Total_Light_VIS <- Base_TL$B1 # a vector with the total reflectance
+
+data.frame(SphereSpp, Total_Light_VIS) # to visualize
+
+```
+
+## 5. Spectral Purity
+
+This parameter is the standardised difference between integrated reflectance before and after the spectral location. Thus, it can be obtained using the function `AUC(x,y)` from the package DescTools (version 0.99.41).
+
+*General Format*
+
+```{r eval=FALSE}
+
+# First define the two areas
+# AUC(x,y) = AUC (wl, reflectance_Sp1) 
+# AUC allows customization of the wavelength range
+
+# A1 = area from lamda min to wavelength <= spectral location:
+A1 <- DescTools::AUC(rspec_object[wl <= SpectralLocationSp1, 1],
+          rspec_object[wl <= SpectralLocationSp1, Column = Sp1]) 
+
+# A2 = area from wavelength >= spectral location to max lamda:
+A2 <- DescTools::AUC(rspec_object[wl >= SpectralLocationSp1, 1], 
+          rspec_object[wl >= SpectralLocationSp1, Column = Sp1]) 
+
+# Use A1 and A2 in the formula for Spectral Purity: 
+SpectralPuritySp1 <- ((A1 - A2) / (A1 + A2))
+
+```
+
+For this parameter, it is also useful to apply a formula to the data frame to automate the extraction of values for each species as shown in the worked example below. However, note that the calculation of this parameter requires a vector with the spectral location values (`SpecLoc_vis`) in the same order of species as the columns of the hemispherical reflection raw data frame. 
+
+*Worked example with Christmas beetles: *
+
+### Step 1: AUC Function
+
+Define a function to calculate the two areas under the curve
+
+```{r}
+
+calculate.a1.a2 <- function(idx) {
+  a1 <- DescTools::AUC( # area before the spectral loc
+    sphmv[sphmv$wl <= SpecLoc_vis[idx - 1], 1],   # wl 
+    sphmv[sphmv$wl <= SpecLoc_vis[idx - 1], idx]) # reflectance 
+  
+  a2 <- DescTools::AUC( # area after the spectral loc
+    sphmv[sphmv$wl >= SpecLoc_vis[idx - 1], 1],   # wl
+    sphmv[sphmv$wl >= SpecLoc_vis[idx - 1], idx]) # reflectance
+  
+  return(c(a1,a2)) 
+}
+
+# `idx` indicates a position in the vector spectral location
+# `idx` also indicates a column in the HemRfl_V data frame
+
+```
+
+### Step 2: Purity Funcion
+
+Define the calculate.purity function
+
+```{r}
+
+calculate.purity <- function(a) {
+  return((a[1] - a[2]) / (a[1] + a[2]))
+}
+
+```
+
+### Step 3: Apply
+
+Combine these two functions in a loop and apply
+
+```{r}
+SpecPurityLoop <- rep("NA",length(SpecLoc_vis)) # empty vector
+
+for(i in 1:length(SpecLoc_vis)) { # repeat for each spectral location
+  SpecPurityLoop[i] <- 
+    calculate.purity(calculate.a1.a2(i + 1)) # use the previous two formulae
+}
+
+SpectralPurity <- abs(round(as.numeric(SpecPurityLoop),4)) # result
+
+```
+
+
+## 6. Iridescence
+
+Iridescence is defined as the blue shift in the spectrum due to an increase in the illumination or observation angle. To quantify iridescence we used the angle dependency of spectral location. And we fitted a linear model to describe the change in spectral location explained by the change in span. We used the function `lm(y~x)` and then calculated iridescence as the negative of the slope of this linear model = blue-shift. Note that this process requires a data frame with the correct spectral location for each geometry/sample. Sometimes corrections will be needed (see worked example).
+
+See more details on when this approach is appropriate in the main document and supplementary files. 
+
+*General Form*
+
+```{r eval=FALSE}
+
+# Fit a linear model to the a subset: 
+    # Spectral location and span angle for species 1 
+LinearModel1 <- lm(IridDataSp1$Spectral.Location ~ IridDataSp1$Angle)
+
+# Obtain the slope of the model
+IridescenceSp1 <- summary(mod)$coefficients[2, 1]
+
+# Find the negative of the slope to express iridescence as blue shift
+Iridescence_Bs_Sp1 <- IridescenceSp1 * (-1)
+
+```
+
+
+*Worked example with Christmas beetles:*
+
+### Step 1: Spectral Location
+
+Find Spectral Location with the automated form as a preliminary step
+
+```{r results = "hide", fig.show="hide"}
+
+# Apply automated formula
+PsIr <- peakshape(FixBsec) # obtain peakshape 
+SpecLocIrid <- PsIr$H1 - PsIr$HWHM.l # Obtain Spectral location
+
+# Create a preliminary data frame
+SpecLocBsec_NonCurated <- 
+  data.frame(
+  "BeetleName" = FixBsecSpp,
+  "SpanAngle"  = FixBsecAngles,
+  "SpecLocB"  = SpecLocIrid) 
+
+```
+
+### Step 2: Corrections
+
+We manually examined each spectra to identify the species that needed manual corrections to ensure the spectral location is always extracted from the shortest wavelength peak. In order to apply corrections (see section 2. Spectral Location) we created subsets of the spectra according to the range needed to evaluate only their shortest wavelength peak. Finally, we applied the automated form to extract the spectral location for each subset and combined them all together. The function to extract iridescence was applied over this new clean data frame.
+
+```{r results = "hide", fig.show="hide", message=FALSE}
+
+## Corrections for Species where the shortest peak < 630 nm ----
+
+# subset those species
+Special.cases630 <-
+  FixBsec %>% 
+  select(wl, contains("fchi")|
+             contains("prsi")|
+             contains("xyln")|
+             contains("smgg")|
+             contains("psch"))
+  
+# Convert to rspec and limit spectral range
+Special.cases630 <- 
+  Special.cases630 %>% 
+  filter (wl < 630) %>% 
+  as.rspec(.) 
+
+# Find Spectral Location
+Ps_cases630 <- peakshape(Special.cases630) # obtain peakshape 
+SpecLocCases630 <- Ps_cases630$H1 - Ps_cases630$HWHM.l # Obtain Spectral loc
+
+# create a preliminary data frame
+SpCases630DF <- 
+  SpecLocBsec_NonCurated %>% 
+  filter (BeetleName == "fchi"|
+          BeetleName == "prsi"|
+          BeetleName == "xyln"|
+          BeetleName == "smgg"|
+          BeetleName == "psch")
+
+# Replace the spectral location column in the data frame
+SpCases630DF$SpecLocB <- SpecLocCases630
+
+## Corrections for Species where the shortest peak < 580 nm ----
+# subset those species
+Special.cases580 <-
+  FixBsec %>% 
+  select(wl, contains("atki"))
+  
+# Convert to rspec and limit spectral range
+Special.cases580 <- 
+  Special.cases580 %>% 
+  filter (wl < 580) %>% 
+  as.rspec(.) 
+
+# Find Spectral Location
+Ps_cases580 <- peakshape(Special.cases580) # obtain peakshape 
+SpecLocC580 <- Ps_cases580$H1 - Ps_cases580$HWHM.l # Obtain Spectral location
+
+# create a preliminary data frame
+SpCases580DF <- 
+  SpecLocBsec_NonCurated %>% 
+  filter (BeetleName == "atki") 
+
+# Replace the spectral location column in the data frame
+SpCases580DF$SpecLocB<- SpecLocC580
+
+# Atki at 60 deg span ("atkibsec30") needs further corrections:
+# the second peak fits in the range < 580 and creates an artifact
+# Limit the range to < 560 to focus in the shortest wavelength peak
+
+SpCases580DF [SpCases580DF$SpanAngle==60,"SpecLocB"] <- # incorrect value
+  peakshape(FixBsec[FixBsec$wl<560,c("wl","atkibsec30")])$H1 -  
+  peakshape(FixBsec[FixBsec$wl<560,c("wl","atkibsec30")])$HWHM.l # new value
+
+
+## Corrections for Species where the shortest peak < 500 nm ----
+# Subset those species
+Special.cases500 <-
+  FixBsec %>% 
+  select(wl, contains("smgp")|
+             contains("rinabsec10")|
+             contains("rinabsec15")|
+             contains("rinabsec20")
+           )
+  
+# Convert to rspec and limit spectral range
+Special.cases500 <- 
+  Special.cases500 %>% 
+  filter (wl < 500) %>% 
+  as.rspec(.) 
+
+# Find Spectral Location
+Ps_cases500 <- peakshape(Special.cases500) # obtain peakshape 
+SpecLocC500 <- Ps_cases500$H1 - Ps_cases500$HWHM.l # Obtain Spectral location
+
+# create a preliminary data frame
+SpCases500DF <- 
+  SpecLocBsec_NonCurated %>% 
+  filter (BeetleName == "smgp"|
+         (BeetleName == "rina" & SpanAngle == "20")|
+         (BeetleName == "rina" & SpanAngle == "30")|
+         (BeetleName == "rina" & SpanAngle == "40")) 
+
+# Replace the spectral location column in the data frame
+SpCases500DF$SpecLocB <- SpecLocC500
+
+
+## Corrections for Species where the shortest peak > 500 nm ----
+# Subset those species
+Special.greater500 <-
+  FixBsec %>% 
+  select(wl, contains("rayn"))
+  
+# Convert to rspec and limit spectral range
+Special.greater500 <- 
+  Special.greater500 %>% 
+  filter (wl > 500) %>% 
+  as.rspec(.) 
+
+# Find Spectral Location
+Ps_greater500 <- peakshape(Special.greater500) # obtain peakshape 
+SpecLocG500 <- Ps_greater500$H1 - Ps_greater500$HWHM.l # Spectral location
+
+# create a preliminary data frame
+SpGreater500DF <- 
+  SpecLocBsec_NonCurated %>% 
+  filter (BeetleName == "rayn")
+
+# Replace the spectral location column in the data frame
+SpGreater500DF$SpecLocB <- SpecLocG500
+
+## Corrections for Species where the shortest peak < 490 nm ----
+# Subset those species
+Special.cases490 <-
+  FixBsec %>% 
+  select(wl, contains("rinabsec25")|
+             contains("rinabsec30"))
+  
+# Convert to rspec and limit spectral range
+Special.cases490 <- 
+  Special.cases490 %>% 
+  filter (wl < 490) %>% 
+  as.rspec(.) 
+
+# Find Spectral Location
+Ps_cases490 <- peakshape(Special.cases490) # obtain peakshape 
+SpecLocC490 <- Ps_cases490$H1 - Ps_cases490$HWHM.l # Spectral location
+
+# Create a preliminary data frame
+SpCases490DF <- 
+  SpecLocBsec_NonCurated %>% 
+  filter ((BeetleName == "rina" & SpanAngle == "50")|
+           (BeetleName == "rina" & SpanAngle == "60"))
+          
+
+# Replace the spectral location column in the data frame
+SpCases490DF$SpecLocB <- SpecLocC490
+
+
+# Apply corrections to the spectral location data frame ----
+
+SpecLocBsec_Clean <- 
+  SpecLocBsec_NonCurated  %>% 
+  filter(BeetleName != "fchi"&
+         BeetleName != "prsi"&  
+         BeetleName != "xyln"& 
+         BeetleName != "smgg"& 
+         BeetleName != "psch"& 
+         BeetleName != "smgp"& 
+         BeetleName != "rina"&
+         BeetleName != "rayn"&
+         BeetleName != "atki") %>% # exclude the species needing correction
+  bind_rows(SpCases630DF) %>%    # add special cases < 630
+  bind_rows(SpCases580DF) %>%    # add special cases < 580
+  bind_rows(SpCases500DF) %>%    # add special cases < 500
+  bind_rows(SpGreater500DF) %>%  # add special cases > 500
+  bind_rows(SpCases490DF) %>%    # add special cases < 490
+  arrange(BeetleName) # in alphabetical order
+
+```
+
+### Step 3: Calculate Blue-shift
+
+```{r}
+
+# Set the function
+ Find.Irid <- function(mydata){
+  mod <- lm(mydata[ , 2] ~ mydata[ , 1])
+  return(summary(mod)$coefficients[2, 1])
+}
+
+# Obtain Iridescence for all the beetles with a loop
+startN <- seq(1, 175, 5) # 175 spectra
+BlueShift <- rep("NA", 35)
+for (i in startN) {
+  stop <- i + 4
+  mysubset <- SpecLocBsec_Clean[i:stop, 2:3]
+  BlueShift[match(i, startN)] <-  Find.Irid(mysubset)
+}
+BlueShift <- round(as.numeric(BlueShift), 3)*
+  -1 # multiply by -1 to get the blues shift
+
+# Create a data frame
+IridResults <- data.frame(
+  "BeetleName" = SpecLocBsec_Clean$BeetleName[startN],
+  "BlueShift" = BlueShift)
+
+IridResults <- 
+  IridResults %>% 
+  arrange(BeetleName) # in alphabetical order
+
+```
+
+
+## 7. Specularity
+
+This parameter refers to the angle dependency of mean reflectance: a higher value means that most of the light is reflected at the specular angle. The mean reflectance can be obtained with the function `summary(rspec_object)$B2` from (PAVO >= 2.7.0), since it calculates the sum of reflectance over the wavelength range of interest divided by the number of wavelength intervals. Then, the relation between these values and the angle of the bisector around the normal should be fitted to a Gaussian equation. 
+
+*General Form*
+
+```{r eval=FALSE}
+
+# Step 1: Find the mean reflectance for each angle
+  MeanReflectanceSp1Angle1 <- summary( FixSpan[ , c(1, Column = Spp1Angle1)])$B2
+
+  # Automated form
+  Base_MR <- peakshape(rspec_object)
+  MeanReflLoop <- Base_MR$B1
+
+# Step2: Run the Find.Gauss function
+      # t = Tilt /  Mean of the Gaussian
+      # gamma = Spread / RSM width of the Gaussian
+      # D_max = Maximum directional reflectance / Amplitude of the Gaussian
+
+# Step3: Apply the Find.Gauss function  
+SpreadSp1 <- Find.Gauss(mydataframe_spanSpp1, t, gamma, D_max)[2]
+SpecularitySp1 <- (1) / SpreadSp1
+
+```
+
+*Worked example with Christmas beetles: *
+
+### Step 1: Mean Reflectance
+
+Find the Mean Reflectance for all spectra with the automated form 
+
+```{r}
+
+# Automated step
+Base_MR <- summary(FixSpan)
+MeanReflLoop <- Base_MR$B2
+
+##Create a data frame 
+
+MeanReflData <- 
+  data.frame(
+  "BeetleName" = FixSpanSpp,
+  "MeanRefl"  = MeanReflLoop, 
+  "GaussAngles"  = GaussAngles) 
+
+# Note: the column order should be conserved:
+# the following function works based on the column number
+
+```
+
+### Step 2: Gauss Function
+
+We used a function in R to optimize the Gaussian fitting. 
+The arguments for this function are:
+
+- A data frame with the values for y and x:  Mean reflectance in column 1 and Angle in column 2. The angles should be the position of the bisector around the normal / 2
+- A preliminary value for t = Tilt /  Mean of the Gaussian
+- A preliminary value for gamma = Spread / RSM width of the Gaussian
+- A preliminary value for D_max = Maximum directional reflectance / Amplitude of the Gaussian
+
+Usually these values are 0,1,1 respectively. 
+
+```{r }
+
+# Define the function to fit the Gaussian model
+## Run this function without altering it
+## This function optimizes the fitting of a Gaussian to the data 
+Find.Gauss <- function(myData,tilt,disorder,maxAmplitud) {
+  x <- myData[ , 2]
+  f <- function(par)
+  {
+    m <- par[1]
+    sd <- par[2]
+    k <- par[3]
+    rhat <- k * exp((-0.5) * ((x - m) / sd) ^ 2)
+    return(sum((myData[ , 1] - rhat) ^ 2))
+  }
+  return(optim(c(tilt, disorder, maxAmplitud), 
+               f, method = "BFGS",  control = list(reltol = 1e-9))$par)
+}
+
+```
+
+The function returns the optimized values for t = Tilt, gamma = Spread and D_max = Maximum directional reflectance. 
+
+### Step 3: Apply
+
+In order to fit the Gaussian to `Mean Reflectance ~ Angle` provide the correct data frame and the default preliminary values for the parameters: t= 0, gamma = 1, D_max = 1. 
+
+This function needs to be applied manually for each spectrum, because it is required to verify that the fitting was correct. If the results in the optimized value of D_max are too far away from the values observed in directional reflectance measurements with the bisector at the normal, it is required to change the preliminary values. After identifying which species need correction, it is possible to summarize the calculations for the spectra that do not need correction in one formula. 
+
+```{r}
+
+# MeanReflData contains the information for each species every 7 rows
+
+# Begining of each subset (first number in each term below)
+ st <- seq(1, length(MeanReflData$BeetleName), 7)
+
+# End of each subset(second number in each term below)
+ nd <- seq(7, length(MeanReflData$BeetleName), 7)
+
+
+# Obtain a data frame with the three parameters of the Gaussian regression
+
+GaussianReg <- data.frame("Tilt" = rep(NA, 35),
+                          "Disorder" = rep(NA, 35),
+                          "MaxRefl" = rep(NA, 35)) # empty data frame
+
+for (i in st) { # apply loop 
+  stop <- i + 6 
+  mysubsetG <- MeanReflData[i:stop, 2:3] # On subsets of the mean refl data
+  GaussianReg[match(i,st),] <- as.numeric(
+    Find.Gauss(mysubsetG, 0, 1, 1)) # apply function
+}
+
+GaussianReg$BeetleName <- MeanReflData$BeetleName[st] # Add species
+
+GaussianReg <- 
+  GaussianReg %>% 
+  arrange(BeetleName) # in alphabetical order
+
+```
+
+### Step 4: Corrections
+
+We applied the function manually varying the initial parameters for the optimization when needed
+
+```{r}
+
+# This beetle needs corrections:
+RoseGaussCor<-as.numeric(
+  Find.Gauss(MeanReflData[127:133, 2:3], 0, 11, 90)) # A. roseus
+
+
+GaussianReg[GaussianReg$BeetleName=="rose",] <- 
+  c(as.list(RoseGaussCor), "rose") # replace in the data frame
+
+# GaussianReg contains the parameters of the Gaussian regression.
+
+```
+
+### Step 5: Specularity
+
+Specularity is the inverse of the disorder parameter in the Gaussian regression
+
+```{r}
+
+GaussianReg$Specularity <- round ((1/ abs(GaussianReg$Disorder)),4)
+
+```
+
+
+## 8. Max. Directional Reflectance
+
+The maximum value of mean reflectance that can be obtained from a surface after considering different geometries. It is likely to occur at the mirror angle. This parameter can be extracted from the previous function, since it is the term B_max in the Gaussian equation by Grusson et al 2019.
+
+*General Format*
+
+```{r eval=FALSE}
+
+MaxDirectReflSp1 <- Find.Gauss(mydataframe_spanSpp1, t, gamma, D_max)[3]
+
+```
+
+Note that in the previous code, we only changed the last number in squared brackets, to ask for the third parameter optimized by the  Find.Gauss function. So, it is possible to also obtain the Max. directional reflectance from the output of the Gaussian optimization shown above. 
+
+*Worked example with Christmas beetles:*
+
+```{r results = "hide"}
+
+GaussianReg$MaxRefl
+
+```
+
+
+## Consolidated 
+
+Data frame including all the parameters for visible light
+
+```{r}
+
+# Create a data frame for hemispherical reflectance data
+HemisphericalData <- data.frame("BeetleName" = SphereSpp,
+                                "NumPeaks" = num_peak,
+                                "SpecLocation" = SpecLoc_vis,
+                                "PeakWidth" = peak_width,
+                                "TotLightRefl" = Total_Light_VIS, 
+                                "SpectralPurity" = SpectralPurity)
+
+HemisphericalData <- 
+  HemisphericalData %>% 
+  arrange(BeetleName) # in alphabetical order
+  
+
+# Add the results of directional reflectance data
+VisibleParameters <- 
+  HemisphericalData %>% 
+  bind_cols("BlueShift" = IridResults$BlueShift) %>% 
+  bind_cols("Specularity" = GaussianReg$Specularity) %>% 
+  bind_cols("MaxRefl" = GaussianReg$MaxRefl)
+
+# Manually Add a variable with the genera 
+Genus <- c( "Anomala",
+            "Calloodes",
+        rep("Anoplog", 5),
+            "Epychrisus",
+        rep("Calloodes", 2),
+            "Anoplosthetus",
+        rep("Anoplog", 2),
+            "Anoplosthetus",
+        rep("Anoplog", 5),
+            "Paraschizognathus", 
+        rep("Anoplog", 2),
+            "Calloodes",
+        rep("Repsimus", 2),
+        rep("Anoplog", 2),
+            "Anoplosthetus",
+        rep("Anoplog", 6),
+            "Xylonichus")
+
+VISParameters <-
+  VisibleParameters %>% 
+  bind_cols("group" = Genus)
+
+VISParameters %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+
+# write_csv(VISParameters, "../Data/20211118ParametersVIS.csv")
+
+```
+
+
+# NIR Parameters
+
+The spectral parameters for near infrared follow the same general forms and conditions as those for the visible light. Thus, the general format is repeated here as a guidance, but details on its rationale can be found in the previous section.
+
+## 1. Number of Peaks
+
+ This parameter can be extracted with the function `explorespec(dataframe)`(PAVO >= 2.7.0). TWe calculated this parameter manually due to the diversity in our samples following the same criteria than for visible light.
+
+*Worked example with Christmas Beetles:*
+
+```{r results = "hide"}
+
+num_peakNIR<-c(0, 0, 1, 1, 0, 1, 0, 0, 0, 0,
+               0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+               0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+               0, 0, 0, 1, 0)
+
+
+data.frame(SphereSpp,num_peakNIR) # Visualize in a table
+
+```
+
+
+## 2. Spectral Location
+
+*General Format*
+
+```{r eval=FALSE}
+
+# General form
+SpectralLocationSp1 <- 
+  peakshape(rspec_object)$H1 -  # Wavelength at maximum reflectance
+    peakshape(rspec_object)$HWHM.l  # left half width of the peak
+
+# Automated form
+Base_PS <- peakshape(rspec_object)
+SpecLocLoop <- Base_PS$H1 - Base_PS$HWHM.l
+
+```
+
+*Worked example with Christmas Beetles:*
+
+After evaluating each of the hemispherical reflectance spectra in the NIR, we concluded that none of them needed corrections. So we used the automated form.
+
+```{r results = "hide", fig.show="hide"}
+
+Base_PR_nir <- peakshape (sphir)
+SpecLoc_NIR<- Base_PR_nir$ H1 - Base_PR_nir$HWHM.l
+
+```
+
+Note: For spectra with a clear peak in NIR reflectance that extends to the visible range, the spectral location can not be extracted from the shortest wavelength side of the peak. We only observed this case in the directional reflectance set. Thus, in order to detect the NIR iridescence in these special cases, we considered the longer wavelength side of the peak (see 6. Iridescence of this NIR section). 
+
+
+## 3. Total Light
+
+This parameter refers to the total hemispherical reflectance (calculated from the integrating sphere measurements). 
+
+```{r eval=FALSE}
+
+#General form
+TotalLightSp1 <- summary(rspec_object)$B1
+
+# Automated form
+Base_TL <- peakshape(rspec_object)
+TotLightLoop <- Base_TL$B1
+
+```
+
+*Worked example with Christmas beetles: *
+
+```{r warning = FALSE, message = FALSE, fig.show="hide"}
+
+Base_TL_NIR <- summary(sphir) # obtain summary spectral parameters
+Total_Light_NIR <- Base_TL_NIR$B1 # a vector with the total reflectance
+
+```
+
+## 4. NIR / VIS Ratio
+
+This parameter describes the ratio of integrated reflectance in Near infrared and human-visible wavelengths. It is based on the same code used for the total light reflected with only some additional steps. 
+
+*General Format*
+
+```{r eval=FALSE}
+
+NIR_VIS_Ratio <- TotalLight_NIR / TotalLight_VIS
+
+```
+
+*Worked example with Christmas beetles:*
+
+Note that the total light reflected for NIR was calculated in the previous section and it was called `Total_Light_NIR`. The total light for visible light was also calculated in a previous section (see parameter # 4 in extraction of visible parameters) and it was called `Total_Light_VIS`.
+
+```{r}
+
+# Find the ratio NIR / VIS
+NIRVISRatio <- Total_Light_NIR / Total_Light_VIS
+
+```
+
+
+## 5. Spectral Purity
+
+*General Format*
+
+```{r eval=FALSE}
+
+# First define the two areas
+# AUC(x,y) = AUC (wl, reflectance_Sp1) 
+# AUC allows customization of the wavelength range
+
+# A1 = area from lamda min to wavelength <= spectral location:
+A1 <- DescTools::AUC(rspec_object[wl <= SpectralLocationSp1, 1],
+          rspec_object[wl <= SpectralLocationSp1, Column = Sp1]) 
+
+# A2 = area from wavelength >= spectral location to max lamda:
+A2 <- DescTools::AUC(rspec_object[wl >= SpectralLocationSp1, 1], 
+          rspec_object[wl >= SpectralLocationSp1, Column = Sp1]) 
+
+# Use A1 and A2 in the formula for Spectral Purity: 
+SpectralPuritySp1 <- ((A1 - A2) / (A1 + A2))
+
+```
+
+*Worked example with Christmas beetles:* 
+
+The same procedure applied for visible light can be used in the infrared subset (here called `sphir`). Note that a vector with the spectral location in NIR is required. Note that the function `calculate.purity` does not need any modification in the code to be applied to NIR, but the function `calculate.a1.a2` needs to be altered to work with the vector of NIR spectral location `SpecLoc_NIR`. 
+
+### Step 1: AUC Function
+
+Define a function to calculate the two areas under the curve
+
+```{r}
+
+calculate.a1.a2_NIR <- function(idx) {
+  a1 <- DescTools::AUC( # area before the spectral loc
+    sphir[sphir$wl <= SpecLoc_NIR[idx - 1], 1],   # wl 
+    sphir[sphir$wl <= SpecLoc_NIR[idx - 1], idx]) # reflectance 
+  
+  a2 <- DescTools::AUC( # area after the spectral loc
+    sphir[sphir$wl >= SpecLoc_NIR[idx - 1], 1],   # wl
+    sphir[sphir$wl >= SpecLoc_NIR[idx - 1], idx]) # reflectance
+  
+  return(c(a1,a2)) 
+}
+
+# `idx` indicates a position in the vector spectral location
+# `idx` also indicates a column in the HemRfl_V data frame
+
+```
+
+### Step 2: Purity Function
+
+Define the calculate.purity function
+
+```{r}
+
+calculate.purity <- function(a) {
+  return((a[1] - a[2]) / (a[1] + a[2]))
+}
+
+```
+
+### Step 3: Apply
+
+Combine these two functions in a loop and apply
+
+```{r}
+
+SpecPurityLoopNIR <- rep("NA",length(SpecLoc_NIR)) # empty vector
+
+for(i in 1:length(SpecLoc_NIR)) { # repeat for each spectral location
+  SpecPurityLoopNIR[i] <- 
+    calculate.purity(calculate.a1.a2_NIR(i + 1)) # use the previous two formulae
+}
+
+SpectralPurity_NIR <- abs(round(as.numeric(SpecPurityLoopNIR),4)) # result
+
+```
+
+
+## 6. Iridescence
+
+*General Form*
+
+```{r eval=FALSE}
+
+# Fit a linear model to the a subset: 
+    # Spectral location and span angle for species 1 
+LinearModel1 <- lm(IridDataSp1$Spectral.Location ~ IridDataSp1$Angle)
+
+# Obtain the slope of the model
+IridescenceSp1 <- summary(mod)$coefficients[2, 1]
+
+# Find the negative of the slope to express iridescence as blue shift
+Iridescence_Bs_Sp1 <- IridescenceSp1 * (-1)
+
+```
+
+*Things to look out for*
+
+The procedure to obtain iridescence in NIR is similar to the one described for visible. However, extra corrections are needed in the following situations: 
+
+- For spectra with a clear peak in NIR reflectance extending to the visible range: We considered the longer wavelength side of the peak.
+
+- For spectra in which multiple wavelengths have reflectance equal to the maximum reflectance: For this case, the function `peakshape(rspec)$H1` will return `NA`, and this occurs often in the NIR since sharp peaks are uncommon in this spectral range. Thus, we limited the range to include only one maximum.
+
+*Worked example with Christmas beetles:*
+
+### Step 1: Find Spectral Location 
+
+```{r results = "hide", fig.show="hide", warning= FALSE, message= FALSE}
+
+# Spectral location when no manual correction is needed 
+
+# Apply automated formula
+PsIr_NIR<- peakshape(FixBsecN) # obtain peakshape 
+SpecLocIrid_NIR <- PsIr_NIR$H1 - PsIr_NIR$HWHM.l # Obtain Spectral location
+
+# Create a preliminary data frame
+SpecLocBsec_NonCurated_NIR <- 
+  data.frame(
+  "BeetleName" = FixBsecSpp,
+  "SpanAngle"  = FixBsecAngles,
+  "SpecLocNIR"  = SpecLocIrid_NIR) 
+
+```
+
+### Step 2: Apply corrections 
+
+```{r results = "hide", fig.show="hide"}
+
+# We manually extracted the spectral location for the special cases: 
+
+ManualCorrectNIR<-c( 
+  
+  # fchi span 20
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 2)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 2)])$HWHM.l,
+  
+  # fchi span 30
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 3)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 3)])$HWHM.l,
+  
+  # fchi span 40
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 4)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 4)])$HWHM.l,
+  
+  # ecry span 20
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 12)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 12)])$HWHM.l,
+  
+  # ecry span 30
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 13)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 13)])$HWHM.l,
+  
+  # ecry span 40
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 14)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 14)])$HWHM.l,
+  
+  # xyln span 20
+  peakshape(FixBsecN[FixBsecN$wl < 1010, c(1, 22)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl < 1010, c(1, 22)])$HWHM.l,
+  
+  # pvul span 20
+  peakshape(FixBsecN[, c(1, 37)])$H1+
+  peakshape(FixBsecN[, c(1, 37)])$HWHM.r, # longer wavelength side
+  
+  # pvul span 30
+  peakshape(FixBsecN[, c(1, 38)])$H1+
+  peakshape(FixBsecN[, c(1, 38)])$HWHM.r, # longer wavelength side
+  
+  # pvul span 40
+  peakshape(FixBsecN[, c(1, 39)])$H1+
+  peakshape(FixBsecN[, c(1, 39)])$HWHM.r, # longer wavelength side
+  
+  # pvul span 50
+  peakshape(FixBsecN[, c(1, 40)])$H1+
+  peakshape(FixBsecN[, c(1, 40)])$HWHM.r, # longer wavelength side
+  
+  # pvul span 60
+  peakshape(FixBsecN[, c(1, 41)])$H1+
+  peakshape(FixBsecN[, c(1, 41)])$HWHM.r, # longer wavelength side
+  
+  # aurs span 20
+  peakshape(FixBsecN[, c(1, 42)])$H1+
+  peakshape(FixBsecN[, c(1, 42)])$HWHM.r, # longer wavelength side
+  
+  # aurs span 30
+  peakshape(FixBsecN[, c(1, 43)])$H1+
+  peakshape(FixBsecN[, c(1, 43)])$HWHM.r, # longer wavelength side
+  
+  # aurs span 40
+  peakshape(FixBsecN[, c(1, 44)])$H1+
+  peakshape(FixBsecN[, c(1, 44)])$HWHM.r, # longer wavelength side
+  
+  # aurs span 50
+  peakshape(FixBsecN[, c(1, 45)])$H1+
+  peakshape(FixBsecN[, c(1, 45)])$HWHM.r, # longer wavelength side
+  
+  # aurs span 60
+  peakshape(FixBsecN[, c(1, 46)])$H1+
+  peakshape(FixBsecN[, c(1, 46)])$HWHM.r, # longer wavelength side
+  
+  # smgg span 20
+  peakshape(FixBsecN[FixBsecN$wl < 1100, c(1, 57)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl < 1100, c(1, 57)])$HWHM.l,
+ 
+  # psch span 60
+  peakshape(FixBsecN[FixBsecN$wl < 1300, c(1, 106)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl < 1300, c(1, 106)])$HWHM.l,
+  
+  # brun span 20
+  peakshape(FixBsecN[, c(1, 107)])$H1+
+  peakshape(FixBsecN[, c(1, 107)])$HWHM.r, # longer wavelength side
+  
+  # brun span 30
+  peakshape(FixBsecN[, c(1, 108)])$H1+
+  peakshape(FixBsecN[, c(1, 108)])$HWHM.r, # longer wavelength side
+  
+  # brun span 40
+  peakshape(FixBsecN[, c(1, 109)])$H1+
+  peakshape(FixBsecN[, c(1, 109)])$HWHM.r, # longer wavelength side
+  
+  # brun span 50
+  peakshape(FixBsecN[, c(1, 110)])$H1+
+  peakshape(FixBsecN[, c(1, 110)])$HWHM.r, # longer wavelength side
+  
+  # brun span 60
+  peakshape(FixBsecN[, c(1, 111)])$H1+
+  peakshape(FixBsecN[, c(1, 111)])$HWHM.r, # longer wavelength side
+  
+  # neus span 20
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 132)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 132)])$HWHM.l,
+  
+  # neus span 30
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 133)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 133)])$HWHM.l,
+  
+  # neus span 40
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 134)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl > 750, c(1, 134)])$HWHM.l,
+  
+  # rina span 40
+  peakshape(FixBsecN[FixBsecN$wl < 1025, c(1, 159)])$H1-
+  peakshape(FixBsecN[FixBsecN$wl < 1025, c(1, 159)])$HWHM.l)
+
+
+# preliminary data frame with the species that need correction
+SpCasesNIR <- 
+  SpecLocBsec_NonCurated_NIR %>% 
+  filter ((BeetleName == "fchi" & SpanAngle == "20")|
+          (BeetleName == "fchi" & SpanAngle == "30")|
+          (BeetleName == "fchi" & SpanAngle == "40")|
+          (BeetleName == "ecry" & SpanAngle == "20")|
+          (BeetleName == "ecry" & SpanAngle == "30")|
+          (BeetleName == "ecry" & SpanAngle == "40")|
+          (BeetleName == "xyln" & SpanAngle == "20")|
+          (BeetleName == "pvul" & SpanAngle == "20")|  
+          (BeetleName == "pvul" & SpanAngle == "30")|
+          (BeetleName == "pvul" & SpanAngle == "40")|
+          (BeetleName == "pvul" & SpanAngle == "50")|
+          (BeetleName == "pvul" & SpanAngle == "60")|
+          (BeetleName == "aurs" & SpanAngle == "20")| 
+          (BeetleName == "aurs" & SpanAngle == "30")| 
+          (BeetleName == "aurs" & SpanAngle == "40")| 
+          (BeetleName == "aurs" & SpanAngle == "50")| 
+          (BeetleName == "aurs" & SpanAngle == "60")|
+          (BeetleName == "smgg" & SpanAngle == "20")|
+          (BeetleName == "psch" & SpanAngle == "60")|
+          (BeetleName == "brun" & SpanAngle == "20")|
+          (BeetleName == "brun" & SpanAngle == "30")|
+          (BeetleName == "brun" & SpanAngle == "40")|
+          (BeetleName == "brun" & SpanAngle == "50")|
+          (BeetleName == "brun" & SpanAngle == "60")|
+          (BeetleName == "neus" & SpanAngle == "20")|
+          (BeetleName == "neus" & SpanAngle == "30")|
+          (BeetleName == "neus" & SpanAngle == "40")|
+          (BeetleName == "rina" & SpanAngle == "40"))
+          
+
+# Replace the spectral location column in the data frame
+SpCasesNIR$SpecLocNIR <- ManualCorrectNIR
+
+# Apply corrections to the spectral location data frame 
+SpecLocBsec_Clean_NIR <- 
+  SpecLocBsec_NonCurated_NIR  %>% 
+  mutate(concat_column = # in order to easily filter specific angles per spp
+         paste(BeetleName, SpanAngle, sep = '_')) %>%  # new column spp_angle
+  filter(concat_column != "fchi_20"& 
+         concat_column != "fchi_30"&
+         concat_column != "fchi_40"&
+         concat_column != "ecry_20"&
+         concat_column != "ecry_30"&
+         concat_column != "ecry_40"&
+         concat_column != "xyln_20"&
+         BeetleName != "pvul"& # all angles needed correction
+         BeetleName != "aurs"& # all angles needed correction
+         concat_column != "smgg_20"& 
+         concat_column != "psch_60" &
+         BeetleName != "brun"& # all angles needed correction
+         concat_column != "neus_20"& 
+         concat_column != "neus_30"& 
+         concat_column != "neus_40"& 
+         concat_column != "rina_40"
+           ) %>%  # exclude the species and angles needing correction
+  select(- concat_column) %>%  # remove, not needed anymore
+  bind_rows(SpCasesNIR) %>% # add special cases corrected
+  arrange(BeetleName)
+
+```
+
+### Step 3: Blue shift Calculation
+
+```{r}
+
+# Set the function
+ Find.Irid <- function(mydata){
+  mod <- lm(mydata[ , 2] ~ mydata[ , 1])
+  return(summary(mod)$coefficients[2, 1])
+} # same function as applied for visible
+
+# Obtain Iridescence for all the beetles with a loop
+startN <- seq(1, 175, 5) # 175 spectra
+BlueShiftNIR <- rep("NA", 35)
+for (i in startN) {
+  stop <- i + 4
+  mysubset <- SpecLocBsec_Clean_NIR[i:stop, 2:3]
+  BlueShiftNIR[match(i, startN)] <-  Find.Irid(mysubset)
+}
+BlueShiftNIR <- round(as.numeric(BlueShiftNIR), 3)*
+  -1 # multiply by -1 to get the blues shift
+
+# Create a data frame
+IridResults_NIR <- data.frame(
+  "BeetleName" = SpecLocBsec_Clean_NIR$BeetleName[startN],
+  "BlueShiftNIR" = BlueShiftNIR)
+
+IridResults_NIR <- 
+  IridResults_NIR %>% 
+  arrange(BeetleName) # in alphabetical order
+
+```
+
+
+## 7. Specularity
+
+Angle dependency of mean reflectance: a higher value means that most of the light is reflected at the specular angle.
+
+*General Format*
+
+```{r eval=FALSE}
+
+# Step 1: Find the mean reflectance for each angle
+  MeanReflectanceSp1Angle1 <- summary( FixSpan[ , c(1, Column = Spp1Angle1)])$B2
+
+  # Automated form
+  Base_MR <- peakshape(rspec_object)
+  MeanReflLoop <- Base_MR$B1
+
+# Step2: Run the Find.Gauss function
+      # t = Tilt /  Mean of the Gaussian
+      # gamma = Spread / RSM width of the Gaussian
+      # D_max = Maximum directional reflectance / Amplitude of the Gaussian
+
+# Step3: Apply the Find.Gauss function  
+SpreadSp1 <- Find.Gauss(mydataframe_spanSpp1, t, gamma, D_max)[2]
+SpecularitySp1 <- (1) / SpreadSp1
+
+```
+
+*Worked example with Christmas beetles: *
+
+### Step 1: Mean Reflectance
+
+Find the Mean Reflectance for all spectra with the automated form 
+
+```{r warning= FALSE, message=FALSE}
+
+# Automated step
+Base_MR_NIR <- summary(FixSpanN)
+MeanReflLoopNIR <- Base_MR_NIR$B2
+
+##Create a data frame 
+
+MeanReflDataNIR <- 
+  data.frame(
+  "BeetleName" = FixSpanSpp,
+  "MeanRefl"  = MeanReflLoopNIR, 
+  "GaussAngles"  = GaussAngles) 
+
+# Note: the column order should be conserved:
+# the following function works based on the column number
+
+```
+
+
+### Step 2: Gauss Function
+
+We used a the same function as used in the visible parameters section: 
+The arguments for this function are:
+
+- A data frame with the values for y and x:  Mean reflectance in column 1 and Angle in column 2. The angles should be the position of the bisector around the normal / 2
+- A preliminary value for t = Tilt /  Mean of the Gaussian
+- A preliminary value for gamma = Spread / RSM width of the Gaussian
+- A preliminary value for D_max = Maximum directional reflectance / Amplitude of the Gaussian
+
+Usually these values are 0,1,1 respectively. 
+
+
+```{r}
+
+# Define the function to fit the Gaussian model
+## Run this function without altering it
+## This function optimizes the fitting of a Gaussian to the data 
+Find.Gauss <- function(myData,tilt,disorder,maxAmplitud) {
+  x <- myData[ , 2]
+  f <- function(par)
+  {
+    m <- par[1]
+    sd <- par[2]
+    k <- par[3]
+    rhat <- k * exp((-0.5) * ((x - m) / sd) ^ 2)
+    return(sum((myData[ , 1] - rhat) ^ 2))
+  }
+  return(optim(c(tilt, disorder, maxAmplitud), 
+               f, method = "BFGS",  control = list(reltol = 1e-9))$par)
+}
+
+```
+
+The function returns the optimized values for t = Tilt, gamma = Spread and D_max = Maximum directional reflectance. 
+
+### Step 3: Apply
+
+In order to fit the Gaussian to `Mean Reflectance ~ Angle` provide the correct data frame and the default preliminary values for the parameters: t= 0, gamma = 1, D_max = 1. 
+
+This function needs to be applied manually for each spectrum, because it is required to verify that the fitting was correct. If the results in the optimized value of D_max are too far away from the values observed in directional reflectance measurements with the bisector at the normal, it is required to change the preliminary values. After identifying which species need correction, it is possible to summarize the calculations for the spectra that do not need correction in one formula. 
+
+```{r}
+
+# MeanReflDataNIR contains the information for each species every 7 rows
+
+# Begining of each subset (first number in each term below)
+ st <- seq(1, length(MeanReflData$BeetleName), 7)
+
+# End of each subset(second number in each term below)
+ nd <- seq(7, length(MeanReflData$BeetleName), 7)
+
+
+# Obtain a data frame with the three parameters of the Gaussian regression
+
+GaussianRegNIR <- data.frame("Tilt" = rep(NA, 35),
+                          "Disorder" = rep(NA, 35),
+                          "MaxRefl" = rep(NA, 35)) # empty data frame
+
+for (i in st) { # apply loop 
+  stop <- i + 6 
+  mysubsetG <- MeanReflDataNIR[i:stop, 2:3] # On subsets of the mean refl data
+  GaussianRegNIR[match(i,st),] <- as.numeric(
+    Find.Gauss(mysubsetG, 0, 1, 1)) # apply function
+}
+
+GaussianRegNIR$BeetleName <- MeanReflDataNIR$BeetleName[st] # Add species
+
+GaussianRegNIR <- 
+  GaussianRegNIR %>% 
+  arrange(BeetleName) # in alphabetical order
+
+```
+
+### Step 4: Corrections
+
+We applied the function manually varying the initial parameters for the optimization when needed
+
+```{r}
+
+# Create a preliminary data frame:
+
+SpecialcasesGaussNIR <-
+  GaussianRegNIR %>% 
+  filter (BeetleName == "prsi"|
+          BeetleName == "rose"|
+          BeetleName == "opal"|
+          BeetleName == "pali"|
+          BeetleName == "anom"|
+          BeetleName == "rina"|
+          BeetleName == "conc"|
+          BeetleName == "macl") 
+
+# Manually extract each of the three parameters
+          
+NIRtiltCorrections<-as.numeric(c(
+  Find.Gauss((MeanReflDataNIR[204:210, 2:3]), 0, 10,  10)[1],  # anom 
+  Find.Gauss((MeanReflDataNIR[232:238, 2:3]), 0,  5, 180)[1],  # conc 
+  Find.Gauss((MeanReflDataNIR[239:245, 2:3]), 0,  5, 100)[1],  # macl 
+  Find.Gauss((MeanReflDataNIR[134:140, 2:3]), 0,  7, 180)[1],  # opal
+  Find.Gauss((MeanReflDataNIR[197:203, 2:3]), 0,  5, 160)[1],  # pali 
+  Find.Gauss((MeanReflDataNIR[ 22: 28, 2:3]), 0, 15, 125)[1],  # prsi
+  Find.Gauss((MeanReflDataNIR[218:224, 2:3]), 0,  5, 120)[1],  # rina 
+  Find.Gauss((MeanReflDataNIR[127:133, 2:3]), 0, 11,  90)[1])) # rose 
+  
+NIRdisorderCorrections<-as.numeric(c(
+  Find.Gauss((MeanReflDataNIR[204:210, 2:3]), 0, 10,  10)[2],  # anom 
+  Find.Gauss((MeanReflDataNIR[232:238, 2:3]), 0,  5, 180)[2],  # conc 
+  Find.Gauss((MeanReflDataNIR[239:245, 2:3]), 0,  5, 100)[2],  # macl 
+  Find.Gauss((MeanReflDataNIR[134:140, 2:3]), 0,  7, 180)[2],  # opal
+  Find.Gauss((MeanReflDataNIR[197:203, 2:3]), 0,  5, 160)[2],  # pali 
+  Find.Gauss((MeanReflDataNIR[ 22: 28, 2:3]), 0, 15, 125)[2],  # prsi
+  Find.Gauss((MeanReflDataNIR[218:224, 2:3]), 0,  5, 120)[2],  # rina 
+  Find.Gauss((MeanReflDataNIR[127:133, 2:3]), 0, 11,  90)[2])) # rose 
+  
+NIRMaxReflCorrections<-as.numeric(c(
+  Find.Gauss((MeanReflDataNIR[204:210, 2:3]), 0, 10,  10)[3],  # anom 
+  Find.Gauss((MeanReflDataNIR[232:238, 2:3]), 0,  5, 180)[3],  # conc 
+  Find.Gauss((MeanReflDataNIR[239:245, 2:3]), 0,  5, 100)[3],  # macl 
+  Find.Gauss((MeanReflDataNIR[134:140, 2:3]), 0,  7, 180)[3],  # opal
+  Find.Gauss((MeanReflDataNIR[197:203, 2:3]), 0,  5, 160)[3],  # pali 
+  Find.Gauss((MeanReflDataNIR[ 22: 28, 2:3]), 0, 15, 125)[3],  # prsi
+  Find.Gauss((MeanReflDataNIR[218:224, 2:3]), 0,  5, 120)[3],  # rina 
+  Find.Gauss((MeanReflDataNIR[127:133, 2:3]), 0, 11,  90)[3])) # rose   
+
+# Replace the values in the data frame 
+
+SpecialcasesGaussNIR$Tilt <- NIRtiltCorrections
+SpecialcasesGaussNIR$Disorder <- NIRdisorderCorrections
+SpecialcasesGaussNIR$MaxRefl <- NIRMaxReflCorrections
+
+# Integrate corrections to the original data frame
+
+GaussianRegNIR <- 
+  GaussianRegNIR  %>% 
+  filter(BeetleName != "prsi"& 
+         BeetleName != "rose"&
+         BeetleName != "opal"&
+         BeetleName != "pali"&
+         BeetleName != "anom"&
+         BeetleName != "rina"&
+         BeetleName != "conc"&
+         BeetleName != "macl") %>%  # exclude the species needing correction
+  bind_rows(SpecialcasesGaussNIR) %>% # add special cases corrected
+  arrange(BeetleName) # alphabetical order
+
+# GaussianRegNIR contains the parameters of the Gaussian regression
+
+```
+
+### Step 5: Specularity
+
+Specularity is the inverse of the disorder parameter in the Gaussian regression
+
+```{r}
+
+GaussianRegNIR$Specularity <- round ((1/ abs(GaussianRegNIR$Disorder)),4)
+
+```
+
+## 8. Max. Directional Reflectance
+
+*General Format*
+
+```{r eval=FALSE}
+
+MaxDirectReflSp1 <- Find.Gauss(mydataframe_spanSpp1, t, gamma, D_max)[3]
+
+```
+
+*Worked example with Christmas beetles:* 
+
+```{r results = "hide"}
+
+GaussianRegNIR$MaxRefl
+  
+```
+
+
+## Consolidated 
+
+Data frame including all the parameters for NIR light
+
+```{r}
+
+# Create a data frame for hemispherical reflectance data
+HemisphereDataNIR <- data.frame("BeetleName" = SphereSpp,
+                                "NumPeaks" =num_peakNIR,
+                                "SpecLocation" = SpecLoc_NIR,
+                                "TotLightRefl" = Total_Light_NIR, 
+                                "Ratio" = NIRVISRatio,
+                                "Spectral Purity" = SpectralPurity_NIR
+                                )
+
+HemisphereDataNIR <- 
+  HemisphereDataNIR %>% 
+  arrange(BeetleName) # in alphabetical order
+  
+# Add the results of directional reflectance data
+NIRParameters <- 
+  HemisphereDataNIR %>% 
+  bind_cols("BlueShift" = IridResults_NIR$BlueShiftNIR) %>% 
+  bind_cols("Specularity" = GaussianRegNIR$Specularity) %>% 
+  bind_cols("MaxRefl" = GaussianRegNIR$MaxRefl)
+
+# Manually Add a variable with the genera 
+Genus <- c( "Anomala",
+            "Calloodes",
+        rep("Anoplog", 5),
+            "Epychrisus",
+        rep("Calloodes", 2),
+            "Anoplosthetus",
+        rep("Anoplog", 2),
+            "Anoplosthetus",
+        rep("Anoplog", 5),
+            "Paraschizognathus", 
+        rep("Anoplog", 2),
+            "Calloodes",
+        rep("Repsimus", 2),
+        rep("Anoplog", 2),
+            "Anoplosthetus",
+        rep("Anoplog", 6),
+            "Xylonichus")
+
+NIRParameters <-
+  NIRParameters %>% 
+  bind_cols("group" = Genus)
+
+NIRParameters %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+
+#write_csv(NIRParameters, "../Data/20211118ParametersNIR.csv")
+
+```
+
+# Manuscript Figures
+
+## Fig 2. Combination of Techniques
+
+Example of the diversity detected by the combination of hemispherical and directional reflectance. The hemispherical reflectance profiles are similar: reflectance increasing towards longer wavelengths. The directional reflectance profiles are different
+
+Hemispherical reflectance 
+
+```{r}
+Example1 <- 
+  sphmv %>% 
+  select (wl, brun, vrid) %>%  # select A. brunipenis and A. viriditarsis
+  gather (key = spp, value = Reflectance, - wl) # prepare for ggplot
+  
+ggplot(data = Example1, aes(x = wl, y = Reflectance, group = spp ))+
+  geom_line()+
+  theme_bw()+
+  facet_wrap(~ spp)+
+  ylim(0, 40) +
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")
+
+```
+
+Directional reflectance
+
+```{r}
+
+Example2<-
+  FixSpan %>% # from the fixed span set (specularity)
+  select (wl, contains("brun")| # select A. brunipenis
+              contains("vrid")) %>%  # And A. viriditarsis
+  gather (key = spp_angle, value = Reflectance, - wl) %>%  # prepare for ggplot
+  separate (spp_angle,sep=8,c("spp","angle")) %>% # ssp and angle into 2 columns
+  filter (angle == ".00"| # bisector at 0 - Normal
+          angle == "_10"| # bisector at -10 
+          angle == "_20") # bisector at -20
+
+ggplot(data = Example2, aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=c("gray52","gray32","gray16",
+                               "gray52","gray32","gray16"))+
+  theme_bw()+
+  facet_wrap(~ spp)+
+  ylim(0, 900) +
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")
+
+```
+
+## Fig 3. Diversity in VIS
+
+The examples show different magnitudes of iridescence ( _A. aureus_ and _C. frenchii_ ), reverse iridescence (red shift in _A. laetus_) and no iridescence ( _A. prasinus_). 
+
+Hemispherical reflectance
+
+```{r}
+
+Example3 <- 
+  sphmv %>% 
+  select (wl, aurs, fchi, lats, prsi) %>%  # select species
+  gather (key = spp, value = Reflectance, - wl) # prepare for ggplot
+  
+ggplot(data = Example3, aes(x = wl, y = Reflectance, group = spp ))+
+  geom_line()+
+  theme_bw()+
+  facet_wrap(~ spp)+
+  ylim(0, 60) +
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")
+
+```
+
+Directional reflectance - Iridescence
+
+```{r}
+
+Example4<-
+  FixBsec %>% # from the fixed bisector set 
+  select (wl, contains("aurs")| # A. aureus
+              contains("fchi")| # C. frenchi
+              contains("lats")| # A. laetus
+              contains("prsi")  # A. prasinus
+          ) %>%  # select species
+  gather (key = spp_angle, value = Reflectance, - wl) %>%  # prepare for ggplot
+  separate (spp_angle,sep=8,c("spp","angle")) %>% # ssp and angle into 2 columns
+  filter (angle == "10"| # span 10 deg
+          angle == "30") # span 30 deg
+
+ggplot(data = Example4, aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray52","gray16"),8))+
+  theme_bw()+
+  facet_wrap(~ spp,  scales = "free")+
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")
+
+```
+
+Directional reflectance - Specularity
+
+```{r}
+
+Example5<-
+  FixSpan %>% # from the fixed span set 
+  select (wl, contains("aurs")| # A. aureus
+              contains("fchi")| # C. frenchi
+              contains("lats")| # A. laetus
+              contains("prsi")  # A. prasinus
+          ) %>%  # select species
+  gather (key = spp_angle, value = Reflectance, - wl) %>%  # prepare for ggplot
+  separate (spp_angle,sep=8,c("spp","angle")) %>% # ssp and angle into 2 columns
+  filter (angle == ".00"|  # bisector at 0 - Normal
+          angle == "_10"|  # bisector at 10 
+          angle == "_20")  # bisector at 20
+
+ggplot(data = Example5, aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray52","gray32","gray16"),8))+
+  theme_bw()+
+  facet_wrap(~ spp,  scales = "free")+
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")
+
+```
+
+
+## Fig 4. Diversity in NIR
+
+The examples show different magnitudes of NIR iridescence and NIR specularity
+
+Hemispherical reflectance
+
+```{r}
+
+Example6 <- 
+  sphir %>% 
+  select (wl, aurs, fchi, lats, prsi) %>%  # select species
+  gather (key = spp, value = Reflectance, - wl) # prepare for ggplot
+  
+ggplot(data = Example6, aes(x = wl, y = Reflectance, group = spp ))+
+  geom_line()+
+  theme_bw()+
+  facet_wrap(~ spp)+
+  ylim(0, 90) +
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")
+
+```
+
+Directional reflectance - Iridescence
+
+```{r}
+
+Example7<-
+  FixBsecN %>% # from the fixed bisector set 
+  select (wl, contains("aurs")| # A. aureus
+              contains("fchi")| # C. frenchi
+              contains("lats")| # A. laetus
+              contains("prsi")  # A. prasinus
+          ) %>%  # select species
+  gather (key = spp_angle, value = Reflectance, - wl) %>%  # prepare for ggplot
+  separate (spp_angle,sep=8,c("spp","angle")) %>% # ssp and angle into 2 columns
+  filter (angle == "10"| # span 10 deg
+          angle == "30") # span 30 deg
+
+ggplot(data = Example7, aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray52","gray16"),8))+
+  theme_bw()+
+  facet_wrap(~ spp,  scales = "free")+
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")
+
+```
+
+Directional reflectance - Specularity
+
+```{r}
+
+Example8<-
+  FixSpanN %>% # from the fixed span set 
+  select (wl, contains("aurs")| # A. aureus
+              contains("fchi")| # C. frenchi
+              contains("lats")| # A. laetus
+              contains("prsi")  # A. prasinus
+          ) %>%  # select species
+  gather (key = spp_angle, value = Reflectance, - wl) %>%  # prepare for ggplot
+  separate (spp_angle,sep=8,c("spp","angle")) %>% # ssp and angle into 2 columns
+  filter (angle == ".00"|  # bisector at 0 - Normal
+          angle == "_10"|  # bisector at 10 
+          angle == "_20")  # bisector at 20
+
+ggplot(data = Example8, aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray52","gray32","gray16"),8))+
+  theme_bw()+
+  facet_wrap(~ spp,  scales = "free")+
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")
+
+```
+
+
+# Table 3 -  Correlations
+
+```{r}
+
+# Visible 
+
+# use VISParameters produced in the section VIS Parameters
+
+VIS_var <- VISParameters[,c(2:9)] # remove the categorical variables
+
+VIS_mat <- Hmisc::rcorr(as.matrix(VIS_var)) 
+VisR2 <- round(VIS_mat$r, 2) # R2 values
+VisCp <- round(VIS_mat$P, 3) # p  values
+
+VisR2 %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+
+VisCp %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+
+
+```
+
+
+```{r}
+# NIR
+
+# use NIRParameters produced in the section NIR Parameters
+
+NIR_var <- NIRParameters[,c(2:9)] #remove the categorical variables 
+
+NIR_mat <- Hmisc::rcorr(as.matrix(NIR_var)) 
+NIRR2 <- round(NIR_mat$r, 3) # R2 values
+NIRCp <- round(NIR_mat$P, 3) # p  values
+
+NIRR2 %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+
+NIRCp %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+
+```
+
+# PCAs 
+
+## VIS
+
+Run PCA
+
+```{r }
+
+cord <- cor(VIS_var) # default: pearsons correlation coeficient
+N <- dim(VIS_var)[1] # number of observations
+
+cortest.bartlett(cord,n=N) # Are the variables correlated? Yes p < 0.05
+eigVal <- eigen(cord) # Extract eigen values
+vectorev <- eigVal$vectors # vector with the eigen values
+
+# See Scree plot in supplementary materials
+
+# Extract components
+compv <- prcomp(VIS_var, retx=TRUE, center=TRUE, scale. = TRUE) # components
+load<-compv$rotation # Loadings matrix - see supplementary
+
+# See importance of the components in supplementary materials
+
+```
+
+Plot
+
+```{r}
+
+# Extract PC axes for plotting
+PCAvalues <- data.frame(Species = VISParameters$BeetleName, 
+                        compv$x, group = VISParameters$group)
+
+# Extract loadings of the variables
+PCAloadings <- data.frame(Variables = rownames(compv$rotation), compv$rotation)
+
+# PC1 vs PC2
+PCV1<-ggplot(PCAvalues, aes(x = PC1, y = PC2, colour = group)) +
+  geom_point(size=5,alpha=0.3)+
+  theme_bw()+
+  geom_text(alpha=.3, size=3, aes(label=Species),col="black")+
+  guides(color = "none", size = "none")+
+  annotate("text", x = (PCAloadings$PC1[c(1,3,4,5,6,8)]*7), 
+           y = (PCAloadings$PC2[c(1,3,4,5,6,8)]*6.7),
+           label = c( "Peaks", 
+                      "PeakWidth      ", 
+                      "TotLight", 
+                      "Purity",
+                      "Blue shift              ", 
+                      "MaxDirectRefl"),cex=4)+
+  geom_segment(data = (PCAloadings[c(1,3,4,5,6,8),]), 
+               aes(x = 0, y = 0, xend = (PC1*6),yend = (PC2*6)), 
+               arrow = arrow(length = unit(1/2, "picas")),
+               color = "black") +
+  xlim(-4.2,4.2)+
+  geom_hline(yintercept = 0, linetype ="dashed",colour="gray")+
+  geom_vline(xintercept = 0, linetype ="dashed",colour="gray")
+
+# PC3 vs PC2 
+PCV2<-ggplot(PCAvalues, aes(x = PC3, y = PC2, colour = group)) +
+  geom_point(size=5,alpha=0.3)+
+  theme_bw()+
+  geom_text(alpha=.3, size=3, aes(label=Species),col="black")+
+  guides(color = "none", size = "none")+
+  annotate("text", x = (PCAloadings$PC3[c(2,3,4,7,8)]*6.7), 
+           y = (PCAloadings$PC2[c(2,3,4,7,8)]*6.7),
+           label = c("SpecLoc        ", 
+                     "PeakWidth",
+                     "TotLight", 
+                     "        Specularity",
+                     "MaxDirectRefl"),cex=4)+
+  geom_segment(data = PCAloadings[c(2,3,4,7,8),], 
+               aes(x = 0, y = 0, xend = (PC3*6),
+                   yend = (PC2*6)), 
+               arrow = arrow(length = unit(1/2, "picas")),
+               color = "black") +
+  xlim(-4.2,4.2)+
+  geom_hline(yintercept = 0, linetype ="dashed",colour="gray")+
+  geom_vline(xintercept = 0, linetype ="dashed",colour="gray")
+
+
+```
+
+## NIR
+
+Run PCA
+
+```{r}
+
+cordi <- cor(NIR_var) # default: pearsons correlation coeficient
+N <- dim(NIR_var)[1] # number of observations
+
+cortest.bartlett(cordi, n = N) #Are the variables correlated? Yes
+eigValnir <- eigen(cordi) #extract eigen values
+vectorevn <- eigValnir$vectors # vector with eigen values
+ 
+# See Scree plot at the end, for supplementary materials
+
+#Extract components
+compn <- prcomp(NIR_var, retx=TRUE, center=TRUE, scale. = TRUE) # components
+lmatn <- compn$rotation # Loadings matrix -  see supplementary
+
+# See importance of the components in supplementary materials
+
+```
+
+
+Plot
+
+```{r}
+
+# Extract PC axes for plotting
+PCAvaluesn <- data.frame(Species=NIRParameters$BeetleName,  
+                         compn$x, group = NIRParameters$group)
+
+# Extract loadings of the variables
+PCAloadingsn <- data.frame(Variables = rownames(compn$rotation), compn$rotation)
+
+# PC1 vs PC2
+PCN1<-ggplot(PCAvaluesn, aes(x = PC1, y = PC2, colour = group)) +
+  geom_point(size=5,alpha=0.3)+
+  theme_bw()+
+  geom_text(alpha=.3, size=3, aes(label=Species),col="black")+
+  guides(color = "none", size = "none")+
+  annotate("text", x = (PCAloadingsn$PC1*7.1), y = (PCAloadingsn$PC2*6.8),
+           label = c("Peaks",
+                     "SpecLoc", 
+                     "TotLight",
+                     "Ratio       ", 
+                     "Purity ", 
+                     "                Blue shift", 
+                     "Specularity",
+                     "MaxDirectRefl"),cex=4)+ # same as PCAloadingsn$Variables
+  geom_segment(data = PCAloadingsn, aes(x = 0, y = 0, xend = (PC1*6),
+                                        yend = (PC2*6)), arrow = arrow(
+                                          length = unit(1/2, "picas")),
+               color = "black") +
+  xlim(-4.2,4.2)+
+  geom_hline(yintercept = 0, linetype ="dashed",colour="gray")+
+  geom_vline(xintercept = 0, linetype ="dashed",colour="gray")
+
+
+```
+
+## Fig. 5
+
+```{r}
+
+grid.arrange(PCV1, PCV2, PCN1, nrow = 1) 
+
+```
+
+
+# Supplementary
+
+## Data sets
+
+It is required to use the raw data, without averaging per repetition
+
+We compared a subset of 7 species: _P. prasinus_, _C. frenchii_, _A. concolor_, _A. viriditarsis_, _A. aureus_, _A. laetus_, _A. prasinus_. 
+
+```{r message=FALSE}
+
+# Hemispherical Reflectance Visible
+ sph4R_V <-
+   sphRawData %>% # Use raw data to compare replicates
+   filter(wl >= 400 & wl <= 700) %>% # Limit range to visible wavelengths
+   select(wl, contains("psch")|
+              contains("fchi")|
+              contains("conc")|
+              contains("tars")|
+              contains("aurs")|
+              contains("lats")|
+              contains("prsi")) %>% # only 7 spp
+   procspec(.,opt="smooth",fixneg="zero",span=0.1)
+
+# Hemispherical Reflectance NIR
+ sph4R_N <-
+   sphRawData %>% # Use raw data to compare replicates
+   filter(wl >= 700 & wl <= 1400) %>%  # Limit range to NIR wavelengths
+   select(wl, contains("psch")|
+              contains("fchi")|
+              contains("conc")|
+              contains("tars")|
+              contains("aurs")|
+              contains("lats")|
+              contains("prsi")) %>% # only 7 spp
+   procspec(.,opt="smooth",fixneg="zero",span=0.1)
+  
+# Directional Reflectance - Fixed Bisector - VIS
+ FixBsec4R <-
+   dualRawData %>% 
+   filter(wl >= 400 & wl <= 700) %>% # visible range
+   select(wl, contains("bsec")) %>%   # keep the bisector set only
+   select(wl, contains("psch")|
+              contains("fchi")|
+              contains("conc")|
+              contains("tars")|
+              contains("aurs")|
+              contains("lats")|
+              contains("prsi")) # only 7 spp
+
+# Directional Reflectance - Fixed Span - VIS
+ FixSpan4R <-
+   dualRawData %>% 
+   filter(wl >= 400 & wl <= 700) %>% # visible range
+   select(wl, contains("span")) %>%  # keep the span set only
+   select(wl, contains("psch")|
+              contains("fchi")|
+              contains("conc")|
+              contains("tars")|
+              contains("aurs")|
+              contains("lats")|
+              contains("prsi")) # only 7 spp
+ 
+ 
+```
+
+Preliminary Data Frames
+
+```{r}
+
+# Species Code
+ SphSpp4Rep   <- substr(names(sph4R_V)[2 : length(names(sph4R_V))], 1, 4) 
+ FixBsecSpp4Rep  <- substr(names(FixBsec4R)[2 : length(names(FixBsec4R))], 1, 4)
+ FixSpanSpp4Rep  <- substr(names(FixSpan4R)[2 : length(names(FixSpan4R))], 1, 4)
+
+# Angles
+ FixBsecAngles4R <- 
+   names(FixBsec4R)[2 : length(FixBsec4R)] %>% 
+   gsub("[[:lower:]]", "", .) %>% 
+   substr(.,1,2) %>% 
+   as.numeric() 
+ FixBsecAngles4R <- FixBsecAngles4R*2 # Since the notation referred to half span
+
+ 
+ FixSpanAngles4R <-
+   names(FixSpan4R)[2 : length(FixSpan4R)] %>% 
+   gsub("^.{8}", "", .) %>%  # remove the first 8 characters 
+   gsub(  "\\.", "", .) %>%  # remove the dot (meant positive angles)
+   gsub(  "_", "-" , .) %>%  # replace _ with - (meant negative angles)
+   gsub(  "r.*", "", .) %>%  # remove the replicate code r_
+   as.numeric ()
+   
+# Preliminary data frame for FixBsec
+ RepFixBsec <- data.frame ("BeetleName" = FixBsecSpp4Rep,
+                           "Angle" = FixBsecAngles4R)
+
+  
+# Preliminary data frame for FixSpan 
+ RepFixSpan <- data.frame("BeetleName" = FixSpanSpp4Rep,
+                          "Angle" = FixSpanAngles4R)
+ 
+ 
+```
+
+## Repeatability
+
+We evaluated repeatability as the agreement of successive repetitions of the same measurement for spectral location and total light reflected in hemispherical reflectance measurements (VIS and NIR) and spectral location and mean reflectance in directional reflectance measurements.
+
+We estimated repeatability using a bootstrapping tool for Gaussian data and posteriorly calculating the percentage of variance explained by the groups (repeatability estimate and its standard error) with p-values based on a likelihood ratio test (all results in "Consolidated")
+
+#### Hemispherical reflectance
+
+##### Total Reflectance - VIS
+
+```{r message=FALSE}
+
+# Extract Total Light Reflectance
+BaseTR4RVIS <- summary(sph4R_V) # obtain summary spectral parameters
+TotRefl_VIS <- BaseTR4RVIS$B1 # a vector with the total reflectance
+
+# Add to a data frame
+Hemisph4R <- data.frame("Beetle" = SphSpp4Rep, 
+                        "TotRefl" = TotRefl_VIS) 
+
+# Test Repeatability
+rpt1 <- rpt(TotRefl~ (1|Beetle),"Beetle", data = Hemisph4R, 
+          nboot = 1000, npermut = 0, datatype = "Gaussian")
+
+```
+
+##### Spectral Location - VIS
+
+```{r results="hide", fig.show="hide"}
+
+# Extract Spectral Location
+
+# We did not use the automated version
+# But we applied the same correction to all replicates of the same spp
+SLocVis4R<-as.numeric(c(
+  # psch 
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 2)])$H1-
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 2)])$HWHM.l, # replica 1
+  
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 3)])$H1-
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 3)])$HWHM.l, # replica 2
+  
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 4)])$H1-
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 4)])$HWHM.l, # replica 3 
+  
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 5)])$H1-
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 5)])$HWHM.l, # replica 4 
+  
+  # fchi
+  peakshape(sph4R_V[, c(1, 6)])$H1-
+  peakshape(sph4R_V[, c(1, 6)])$HWHM.l, # replica 1
+  
+  peakshape(sph4R_V[, c(1, 7)])$H1-
+  peakshape(sph4R_V[, c(1, 7)])$HWHM.l, # replica 2
+
+  peakshape(sph4R_V[, c(1, 8)])$H1-
+  peakshape(sph4R_V[, c(1, 8)])$HWHM.l, # replica 3
+  
+  peakshape(sph4R_V[, c(1, 9)])$H1-
+  peakshape(sph4R_V[, c(1, 9)])$HWHM.l, # replica 4
+  
+  # conc
+  peakshape(sph4R_V[, c(1, 10)])$H1-
+  peakshape(sph4R_V[, c(1, 10)])$HWHM.l, # replica 1
+  
+  peakshape(sph4R_V[, c(1, 11)])$H1-
+  peakshape(sph4R_V[, c(1, 11)])$HWHM.l, # replica 2
+  
+  peakshape(sph4R_V[, c(1, 12)])$H1-
+  peakshape(sph4R_V[, c(1, 12)])$HWHM.l, # replica 3
+  
+  peakshape(sph4R_V[, c(1, 13)])$H1-
+  peakshape(sph4R_V[, c(1, 13)])$HWHM.l, # replica 4
+  
+  # tars
+  peakshape(sph4R_V[, c(1, 14)])$H1-
+  peakshape(sph4R_V[, c(1, 14)])$HWHM.l, # replica 1
+  
+  peakshape(sph4R_V[, c(1, 15)])$H1-
+  peakshape(sph4R_V[, c(1, 15)])$HWHM.l, # replica 2
+  
+  peakshape(sph4R_V[, c(1, 16)])$H1-
+  peakshape(sph4R_V[, c(1, 16)])$HWHM.l, # replica 3
+  
+  peakshape(sph4R_V[, c(1, 17)])$H1-
+  peakshape(sph4R_V[, c(1, 17)])$HWHM.l, # replica 4
+  
+  # aurs
+  peakshape(sph4R_V[, c(1, 18)])$H1-
+  peakshape(sph4R_V[, c(1, 18)])$HWHM.l, # replica 1
+  
+  peakshape(sph4R_V[, c(1, 19)])$H1-
+  peakshape(sph4R_V[, c(1, 19)])$HWHM.l, # replica 2
+  
+  peakshape(sph4R_V[, c(1, 20)])$H1-
+  peakshape(sph4R_V[, c(1, 20)])$HWHM.l, # replica 3
+  
+  peakshape(sph4R_V[, c(1, 21)])$H1-
+  peakshape(sph4R_V[, c(1, 21)])$HWHM.l, # replica 4
+  
+  # lats
+  peakshape(sph4R_V[, c(1, 22)])$H1-
+  peakshape(sph4R_V[, c(1, 22)])$HWHM.l, # replica 1
+  
+  peakshape(sph4R_V[, c(1, 23)])$H1-
+  peakshape(sph4R_V[, c(1, 23)])$HWHM.l, # replica 2
+
+  peakshape(sph4R_V[, c(1, 24)])$H1-
+  peakshape(sph4R_V[, c(1, 24)])$HWHM.l, # replica 3
+  
+  peakshape(sph4R_V[, c(1, 25)])$H1-
+  peakshape(sph4R_V[, c(1, 25)])$HWHM.l, # replica 4 
+  
+  # prsi
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 26)])$H1-
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 26)])$HWHM.l, # replica 1
+  
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 27)])$H1-
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 27)])$HWHM.l, # replica 2
+  
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 28)])$H1-
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 28)])$HWHM.l, # replica 3
+  
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 29)])$H1-
+  peakshape(sph4R_V[sph4R_V$wl <= 650, c(1, 29)])$HWHM.l # replica 4
+
+))
+
+# Add to the data frame
+Hemisph4R$SpecLoc <- SLocVis4R 
+
+# Test Repeatability
+rpt2 <- rpt(SpecLoc~ (1|Beetle),"Beetle", data = Hemisph4R, 
+          nboot = 1000, npermut = 0, datatype = "Gaussian")
+
+```
+
+##### Total Reflectance - NIR
+
+```{r message=FALSE, warning=FALSE}
+
+# Extract Total Light Reflectance
+BaseTR4RNIR <- summary(sph4R_N) # obtain summary spectral parameters
+TotRefl_NIR <- BaseTR4RNIR$B1 # a vector with the total reflectance
+
+# Add to the data frame
+Hemisph4R$TotReflNIR <- TotRefl_NIR 
+
+# Test Repeatability
+rpt3 <- rpt(TotReflNIR~ (1|Beetle), "Beetle", data = Hemisph4R, 
+          nboot = 1000, npermut = 0, datatype = "Gaussian")
+
+```
+
+
+##### Spectral Location - NIR
+
+```{r message=FALSE, warning=FALSE, results=FALSE, fig.show="hide"}
+
+# After evaluating each of these manually, we decided a correction was needed
+# Wavelength was limited to < 1000 for all spectra
+sph4R_NLess100<-
+  sph4R_N %>% 
+  filter(wl <= 1000) # to avoid artifacts 
+
+# Find spectral location
+BaseSLocNIR <- peakshape(sph4R_NLess100) # obtain peakshape 
+SLocNIR4R <- BaseSLocNIR$H1 - BaseSLocNIR$HWHM.l # Obtain Spectral location
+
+# Add to the data frame
+Hemisph4R$SpecLocNIR <- SLocNIR4R
+
+# Test repeatability
+rpt4 <- rpt(SpecLocNIR~ (1|Beetle),"Beetle", data = Hemisph4R, 
+          nboot = 1000, npermut = 0, datatype = "Gaussian")
+
+```
+
+
+#### Directional reflectance 
+
+##### Spectral Location - VIS
+
+```{r message=FALSE, warning=FALSE, results=FALSE, fig.show="hide"}
+
+# Extract the spectral location - Automated
+
+# Apply automated formula
+SpLc_4R<- peakshape(FixBsec4R) # obtain peakshape 
+SpecLoc_4R <- SpLc_4R$H1 - SpLc_4R$HWHM.l # Obtain Spectral location
+
+# Add to data frame
+RepFixBsec$SpecLoc <- SpecLoc_4R
+
+# Apply corrections
+
+## Subset the species that need correction (according to manual evaluation)
+CorrectSpecLoc_4R<- 
+  FixBsec4R %>% 
+  select(wl, contains("fchi")|
+             contains("prsi")|
+             contains("xyln")|
+             contains("smgg")|
+             contains("psch")) %>% 
+  filter(wl < 630) # Limit the spectral range 
+
+## Apply automated formula to the subset
+SpLc_4R_sub<- peakshape(CorrectSpecLoc_4R) # obtain peakshape 
+SpecLoc_4R_sub <- SpLc_4R_sub$H1 - SpLc_4R_sub$HWHM.l # Obtain Spectral location
+
+## create a preliminary data frame
+Special.cases4R <- 
+  RepFixBsec %>% 
+  filter (BeetleName == "fchi"|
+          BeetleName == "prsi"|
+          BeetleName == "xyln"|
+          BeetleName == "smgg"|
+          BeetleName == "psch")
+
+## Replace the spectral location column in the preliminary data frame
+Special.cases4R$SpecLoc <- SpecLoc_4R_sub
+
+## Apply corrections to the data frame
+RepFixBsec <- 
+  RepFixBsec %>% 
+  filter(BeetleName != "fchi"&
+         BeetleName != "prsi"&
+         BeetleName != "xyln"&
+         BeetleName != "smgg"&
+         BeetleName != "psch") %>% # remove the species that need correction
+  bind_rows(Special.cases4R) %>% # add the special cases (corrected)
+  mutate(Beet_Geom = # because reflectance varies with the combination
+         paste(BeetleName, Angle, sep = '_')) # new column spp_angle
+
+# Test Repeatability
+
+rpt5 <- rpt(SpecLoc~ (1|Beet_Geom),"Beet_Geom", data=RepFixBsec, 
+          nboot = 1000, npermut=0, datatype="Gaussian")
+
+```
+
+
+##### Mean Reflectance - VIS
+
+```{r message=FALSE}
+
+# Extract Total Light Reflectance
+BaseTR4Rspan <- summary(FixSpan4R) # obtain summary spectral parameters
+MeanRefl_span <- BaseTR4Rspan$B2 # a vector with the mean reflectance
+
+# Add to data frame
+RepFixSpan <- data.frame("BeetleName" = FixSpanSpp4Rep,
+                          "Angle" = FixSpanAngles4R,
+                          "MeanRefl" = MeanRefl_span)
+
+# Create a concatenated column spp_angle
+RepFixSpan <-
+  RepFixSpan %>% 
+  mutate(Beet_Geom = # because reflectance varies with the combination
+         paste(BeetleName, Angle, sep = '_')) # new column spp_angle
+ 
+
+# Test Repeatability
+rpt6 <- rpt(MeanRefl ~ (1|Beet_Geom),"Beet_Geom", data=RepFixSpan, 
+          nboot = 1000, npermut=0, datatype="Gaussian")
+
+```
+
+
+#### Consolidated
+
+We produced a matrix with the repeatability index and standard deviation around the estimate of repeatability for each parameter evaluated. 
+
+The row "groups" refers to the number of species studied in the hemispherical reflectance data. And it refers to the species_angle combinations studied on each of the directional reflectance sets: 
+
+Fixed bisector - `DirectSpecLocVIS`: 7 species in 5 different geometries 
+Fixed span - `DirectMeanReflVIS`: 7 species in 7 different geometries
+
+The number of observations considers the number of groups * the replicates per group. In the hemispherical reflectance set we considered 4 replicates per group and in the directional reflectance set we considered 3 replicates per group.
+
+##### Table S2
+
+```{r}
+
+SumData <- c (
+  summary(rpt1)$R, summary(rpt2)$R, summary(rpt3)$R,
+  summary(rpt4)$R, summary(rpt5)$R, summary(rpt6)$R,
+  summary(rpt1)$se, summary(rpt2)$se, summary(rpt3)$se,
+  summary(rpt4)$se, summary(rpt5)$se, summary(rpt6)$se)
+
+SumData <-
+  SumData %>% 
+  as.numeric() %>% 
+  round(.,3)
+
+pvaluesRep<-c(
+  summary(rpt1)$LRT[[2]][["LRT_P"]], summary(rpt2)$LRT[[2]][["LRT_P"]],
+  summary(rpt3)$LRT[[2]][["LRT_P"]], summary(rpt4)$LRT[[2]][["LRT_P"]],
+  summary(rpt5)$LRT[[2]][["LRT_P"]], summary(rpt6)$LRT[[2]][["LRT_P"]])
+
+pvaluesRep <- formatC(pvaluesRep, format = "e", digits = 2)
+
+NumObs<- as.numeric(c(
+  summary(rpt1)$ngroups, summary(rpt2)$ngroups, summary(rpt3)$ngroups,
+  summary(rpt4)$ngroups, summary(rpt5)$ngroups, summary(rpt6)$ngroups,
+  summary(rpt1)$nobs, summary(rpt2)$nobs, summary(rpt3)$nobs,
+  summary(rpt4)$nobs, summary(rpt5)$nobs, summary(rpt6)$nobs))
+
+matrixdata<- c (SumData, pvaluesRep, NumObs)
+  
+
+rnames = c("Repeatability", "se.Repeatability", "p-value", "Groups", "Observations")
+cnames = c("HemisphSpecLoc_VIS","HemisphTotRefl_VIS","HemisphSpecLoc_NIR",
+           "HemisphTotRefl_NIR", "DirectSpecLocVIS", "DirectMeanReflVIS")
+
+RepeatMatrix <- matrix(matrixdata, nrow = 5, ncol = 6, 
+                       byrow = TRUE,dimnames=list(rnames,cnames))
+
+RepeatMatrix %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+
+```
+
+All the repeatability values are high, most of them above 0.9
+
+## Variability 
+
+Statistical descriptors mean and standard deviation were obtained for two of the main parameters: total reflectance and spectral location in hemispherical reflectance. Spectral location and mean reflectance in directional reflectance, in the fixed bisector and fixed span sets respectively.
+
+####  Hemispherical reflectance 
+
+##### Total Reflectance - VIS
+
+```{r}
+
+VarHTotRefl_VIS <-
+  Hemisph4R %>% # Parameters from the previous section
+  select(Beetle, TotRefl) %>% # keep only the total reflectance
+  group_by(Beetle) %>%  # group the replicates per species
+  summarise(MeanTR = mean(TotRefl), # find mean
+            sdTR = sd(TotRefl)) %>%  # find sd
+  mutate(CV = sdTR / MeanTR *100 ) # coefficient of variation
+
+```
+
+##### Spectral Location - VIS
+
+```{r}
+
+VarHSpecLoc_VIS <-
+  Hemisph4R %>% # Parameters from the previous section
+  select(Beetle, SpecLoc) %>% # keep only spectral location
+  group_by(Beetle) %>%  # group the replicates per species
+  summarise(MeanSL = mean(SpecLoc), # find mean
+            sdSL = sd(SpecLoc)) # find sd
+
+```
+
+##### Total Reflectance - NIR
+
+```{r}
+
+VarHTotRefl_NIR <-
+  Hemisph4R %>% # Parameters from the previous section
+  select(Beetle, TotReflNIR) %>% # keep only the total reflectance
+  group_by(Beetle) %>%  # group the replicates per species
+  summarise(MeanTRN = mean(TotReflNIR), # find mean
+            sdTRN = sd(TotReflNIR)) %>%  # find sd
+  mutate(CV = sdTRN / MeanTRN * 100 ) # coefficient of variation
+
+```
+
+##### Spectral Location - NIR
+
+```{r}
+
+VarHSpecLoc_NIR <-
+  Hemisph4R %>% # Parameters from the previous section
+  select(Beetle, SpecLocNIR) %>% # keep only spectral location
+  group_by(Beetle) %>%  # group the replicates per species
+  summarise(MeanSLN = mean(SpecLocNIR), # find mean
+            sdSLN = sd(SpecLocNIR)) # find sd
+
+```
+
+####  Directional reflectance 
+
+##### Spectral Location - VIS
+
+```{r}
+
+VarBsecSpecLoc <-
+  RepFixBsec %>% 
+  group_by(Beet_Geom) %>%  # group the replicates per species and angle
+  summarise(MeanBsecSL = mean(SpecLoc), # find mean
+            sdBsecSL = sd(SpecLoc))  # find sd
+
+```
+
+##### Mean Reflectance - VIS
+
+```{r}
+
+VarSpanMeanRefl <-
+  RepFixSpan %>% 
+  group_by(Beet_Geom) %>%  # group the replicates per species and angle
+  summarise(MeanSpanMR = mean(MeanRefl), # find mean
+            sdSpanMR = sd(MeanRefl)) %>%  # find sd
+  mutate (C.V. = sdSpanMR / MeanSpanMR * 100) %>% # coefficient of variation
+  mutate (CV = round (C.V.,2))
+  
+```
+
+#### Consolidated
+
+We evaluated the variability between replicates: Variation in spectral location is the standard deviation `_sd` (nm). Variation in total reflectance is the coefficient of variation `_CV`, i.e. standard deviation normalized by the mean of the parameter (dimensionless quantity).
+
+##### Table S3
+
+```{r}
+
+# Variability in hemispherical reflectance measurements
+
+Variability_Hemisph <- data.frame(
+  "Beetle" = VarHTotRefl_VIS$Beetle,
+  "TotRefl_VIS_CV" = round(VarHTotRefl_VIS$CV, 3),
+  "SpecLoc_VIS_sd" = round(VarHSpecLoc_VIS$sdSL, 3),
+  "TotRefl_NIR_CV" = round(VarHTotRefl_NIR$CV, 3),
+  "SpecLoc_NIR_sd" = round(VarHSpecLoc_NIR$sdSLN, 3))
+
+Variability_Hemisph %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+
+```
+
+##### Table S4
+
+Variation in spectral location is the standard deviation `sdBsecSL` (nm):
+
+```{r}
+
+# Variability in fixed bisector set
+
+Variability_FixBsec <- 
+  VarBsecSpecLoc %>% 
+  select (Beet_Geom, sdBsecSL) %>% 
+  mutate (SD = round(sdBsecSL,2)) %>% # round to 3 
+  select (Beet_Geom, SD) %>% # keep only SD
+  separate (Beet_Geom,sep=4,c("spp","angle")) %>%  # ssp_angle into 2 columns
+  spread (key = angle, value = SD) # angles to columns for visualization
+
+Variability_FixBsec %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+
+```
+
+##### Table S5
+
+Variation in total reflectance is the coefficient of variation `_CV`, i.e. standard deviation normalized by the mean of the parameter (dimensionless quantity):
+
+```{r}
+
+# Variability in fixed span set
+
+Variability_FixSpan <-
+  VarSpanMeanRefl %>% 
+  separate (Beet_Geom,sep=5,c("spp","angle")) %>% # ssp and angle into 2 columns
+  mutate (Spp = substr(spp,1,4)) %>%  # remove the _
+  select (Spp, angle, CV) %>% # order columns
+  arrange (Spp, angle) %>% # alphabetical and ascending order
+  spread (key = angle, value = CV) # angles to columns for visualization
+  
+Variability_FixSpan %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+
+```
+
+
+## S6: Iridescence models
+
+We compared the cosin model reported in Gruson et al 2019. with a linear model. 
+
+```{r}
+IridModData <- read_csv("../Data/4.IridModelsData.csv") 
+
+# Keep only the spp where a Gaussian reression can be conducted
+IridModDataCor <- 
+  IridModData %>% 
+  mutate (IS.NA = is.na(IridModData$a)) %>% 
+  filter (IS.NA == FALSE)
+
+# Conduct a correlation test between b and d
+# Consider the absolute value of d because that is the blueshift
+cor.test (IridModDataCor$b, abs(IridModDataCor$d))
+
+```
+
+
+## PCA - VIS Details
+
+### Fig. S3 A
+
+Eigen Values
+
+```{r}
+
+{ plot(c(1:length(eigVal$values)),eigVal$values,type="b", cex=1.4,
+     ylab="Eigen Values",xlab="Principal components") 
+abline(h=1,col="dodgerblue3",lwd=2,lty=2)}
+
+```
+
+### Fig. S3 B
+
+Loadings Matrix
+
+```{r}
+# ```{r fig.align = "center", fig.height = "8cm", fig.width = "8cm", eval=FALSE}
+par(mar=c(4, 8, 4, 4))
+plot(load[,1:3],cex=0.8,breaks=c(-1,-0.5,-0.4,-0.3,0.3,0.4,0.5,1),
+     las=2,ylab=" ",xlab=" ",
+     digits=2,
+     col=c("#8C510A" ,"#D8B365", "#F6E8C3", 
+           "#F5F5F5" ,"#C7EAE5" ,"#5AB4AC" ,"#01665E"),
+     main="Loadings matrix - Visible              ") 
+
+
+```
+
+### Table. S7
+
+Importance of the components
+
+```{r}
+summary(compv) 
+```
+
+## PCA - NIR Details
+
+### Fig. S4 A
+
+Eigen Values
+
+```{r}
+
+{ plot(c(1:length(eigValnir$values)),eigValnir$values,type="b",cex=1.4,
+     ylab="Eigen Values",xlab="Principal components") 
+abline(h=1,col="firebrick3",lwd=2,lty=2) }
+
+```
+
+### Fig. S4 B
+
+Loadings Matrix
+
+```{r}
+# ```{r eval=FALSE, fig.align = "center", fig.height = "8cm", fig.width = "8cm"}
+par(mar=c(4, 8, 4, 4))
+plot(lmatn[,1:3],cex=0.8,breaks=c(-1,-0.5,-0.4,-0.3,0.3,0.4,0.5,1),
+     las=2,ylab=" ",xlab=" ",
+     digits=2,
+     col=c("#8C510A" ,"#D8B365", "#F6E8C3", 
+           "#F5F5F5" ,"#C7EAE5" ,"#5AB4AC" ,"#01665E"),
+     main="Loadings matrix - NIR              ")
+
+```
+
+### Table. S8
+
+Importance of the components
+
+```{r}
+summary(compn) 
+```
+
+
+
+
+
