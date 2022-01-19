@@ -3,13 +3,7 @@ title: "A framework to characterise optical properties of natural objects - Supp
 author: "Authors: Removed for double blind review"
 date: "10/11/2021"
 output:
-  
-  pdf_document:
-    toc: true
-    toc_depth: 5
-    df_print: kable
-    highlight: tango
-    
+
   html_document: 
     toc: yes
     toc_float: yes
@@ -18,7 +12,6 @@ output:
     theme: paper
     self_contained: yes
     mode: selfcontained
-
 editor_options: 
   chunk_output_type: console
 ---
@@ -34,6 +27,7 @@ This document contains the general procedure to extract the 9 spectral parameter
 
 For each of the spectral parameters we first show the general form of the code needed to extract it, followed by a worked example with Christmas beetles. 
 
+Original data can be found here: https://github.com/lospinarozo/FrameworkOpticalProperties_RCode2021 
 
 # Libraries
 
