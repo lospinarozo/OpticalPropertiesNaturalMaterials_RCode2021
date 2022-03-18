@@ -1,9 +1,8 @@
 ---
-title: "A framework to characterise optical properties of natural objects - Supplementary Material"
+title: "A generalized approach to characterise optical properties of natural objects - Original code"
 author: "Authors: Removed for double blind review"
 date: "10/11/2021"
 output:
-
   html_document: 
     toc: yes
     toc_float: yes
@@ -2920,7 +2919,7 @@ cor.test (IridModDataCor$b, abs(IridModDataCor$d))
 
 ## PCA - VIS Details
 
-### Fig. S3 A
+### Fig. S7 A
 
 Eigen Values
 
@@ -2932,7 +2931,7 @@ abline(h=1,col="dodgerblue3",lwd=2,lty=2)}
 
 ```
 
-### Fig. S3 B
+### Fig. S7 B
 
 Loadings Matrix
 
@@ -2959,7 +2958,7 @@ summary(compv)
 
 ## PCA - NIR Details
 
-### Fig. S4 A
+### Fig. S8 A
 
 Eigen Values
 
@@ -2971,7 +2970,7 @@ abline(h=1,col="firebrick3",lwd=2,lty=2) }
 
 ```
 
-### Fig. S4 B
+### Fig. S8 B
 
 Loadings Matrix
 
@@ -2996,6 +2995,102 @@ summary(compn)
 ```
 
 
+## Diversity in Spectral Shapes
+
+### Data Sets
+
+```{r}
+
+# Full spectrum 400 to 1400nm
+duala<-
+  dualAvgData %>% 
+  filter(wl>=400 & wl<=1400)
+
+# Bisector all 400 to 1400 nm
+FixBsecAll <-
+  dualAvgData %>% 
+  select(wl, contains("bsec")) # keep the bisector set only
+names(FixBsecAll) <- substr(names(FixBsecAll), 1, 10) # remove suffix
+
+# Fixed Bisector Set - Visible
+FixBsec <-
+  dualAvgData %>% 
+  filter(wl >= 400 & wl <= 700) %>% # visible range
+  select(wl, contains("bsec")) # keep the bisector set only
+names(FixBsec) <- substr(names(FixBsec), 1, 10) # remove suffix
+
+# For Sheen
+Sheen <- 
+  dualAvgData  %>% 
+  filter(wl>=400 & wl<=700) %>% 
+  select(wl, contains("span")) %>% 
+  select(wl, contains(".00") |
+           contains(".20")) %>% 
+  select(wl,contains("vrid")|
+            contains("boid")|
+            contains("pind")|
+            contains("rina"))
+
+```
 
 
+### Green Fig. S2
+
+
+```{r fig.show="hold"}
+
+par(mfrow = c(2, 2))
+
+plot(FixBsec[,c(1, 82,86)], type="overlay", cex.axis=0.7, cex.lab=0.9) #atki
+plot(FixBsec[,c(1, 112,116)], type="overlay", cex.axis=0.7, cex.lab=0.9) # punc
+plot(FixBsec[,c(1, 132,136)], type="overlay", cex.axis=0.7, cex.lab=0.9) # neus
+plot(FixBsec[,c(1, 12,16)], type="overlay", cex.axis=0.7, cex.lab=0.9) # Ecry 
+
+```
+
+### Sheen Fig. S3
+
+```{r fig.show="hold"}
+
+par(mfrow = c(2, 2))
+
+plot(Sheen[,c(1, 2,3)], type="overlay", cex.axis=0.7, cex.lab=0.9) #vrid
+plot(Sheen[,c(1, 4,5)], type="overlay", cex.axis=0.7, cex.lab=0.9) #boid
+plot(Sheen[,c(1, 6,7)], type="overlay", cex.axis=0.7, cex.lab=0.9) #pind
+plot(Sheen[,c(1, 8,9)], type="overlay", cex.axis=0.7, cex.lab=0.9) #rina
+
+```
+
+
+### Iridescent NIR Fig. S4
+
+```{r fig.show="hold"}
+
+par(mfrow = c(2, 2))
+
+plot(FixBsecAll[,c(1, 37,40)], type="overlay", 
+     xlim=c(400,1100), cex.axis=0.7, cex.lab=0.9) # pvul
+plot(FixBsecAll[,c(1, 42,46)], type="overlay",
+     xlim=c(400,1100), cex.axis=0.7, cex.lab=0.9) # aurs
+plot(FixBsecAll[,c(1, 92,96)], type="overlay", 
+     xlim=c(400,1100), cex.axis=0.7, cex.lab=0.9) # rose
+plot(FixBsecAll[,c(1, 107,111)], type="overlay", 
+     xlim=c(400,1100), cex.axis=0.7, cex.lab=0.9) # bruni
+
+```
+
+
+### Diffuse NIR Fig. S5
+
+```{r fig.show="hold"}
+
+par(mfrow = c(2, 2))
+
+plot(FixBsecAll[,c(1, 17)], type="overlay", cex.axis=0.7, cex.lab=0.9) # prsi
+plot(FixBsecAll[,c(1, 22)], type="overlay", cex.axis=0.7, cex.lab=0.9) # xyln
+plot(FixBsecAll[,c(1, 32)], type="overlay", cex.axis=0.7, cex.lab=0.9) # gray
+plot(FixBsecAll[,c(1, 102)], type="overlay", cex.axis=0.7, cex.lab=0.9) # psch
+
+
+```
 
