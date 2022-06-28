@@ -1924,13 +1924,44 @@ Example1 <-
   
 ggplot(data = Example1, aes(x = wl, y = Reflectance, group = spp ))+
   geom_line()+
-  theme_bw()+
+  theme_classic()+
   facet_wrap(~ spp)+
   ylim(0, 40) +
   ylab("Reflectance (%)")+
   xlab("wavelength (nm)")
 
 ```
+
+Aligned graphs
+
+```{r}
+unique(Example1$spp)
+BruHplot <- ggplot(data = Example1[Example1$spp=="brun",], aes(x = wl,
+                                        y = Reflectance ))+
+  geom_line()+
+  theme_classic()+
+  ylim(0, 40) +
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")+
+  theme(legend.position="none")+
+  geom_vline(xintercept = 609, col="grey", linetype = "longdash")
+
+
+PindHplot <- ggplot(data = Example1[Example1$spp=="vrid",], aes(x = wl,
+                                        y = Reflectance ))+
+  geom_line()+
+  theme_classic()+
+  ylim(0, 40) +
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")+
+  theme(legend.position="none")+
+  geom_vline(xintercept = 531, col="grey", linetype = "longdash")
+  
+```
+
+
+
+
 
 Directional reflectance
 
@@ -1950,13 +1981,50 @@ ggplot(data = Example2, aes(x = wl, y = Reflectance, colour = angle ))+
   geom_line()+
   scale_colour_manual(values=c("gray52","gray32","gray16",
                                "gray52","gray32","gray16"))+
-  theme_bw()+
+  theme_classic()+
   facet_wrap(~ spp)+
   ylim(0, 900) +
   ylab("Reflectance (%)")+
-  xlab("wavelength (nm)")
+  xlab("wavelength (nm)")+
+  theme(legend.position="none")
 
 ```
+
+Aligned graphs
+
+```{r}
+
+BruDplot <- ggplot(data = Example2[Example2$spp=="brunspan",], aes(x = wl,
+                                        y = Reflectance, 
+                                        colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=c("gray52","gray32","gray16",
+                               "gray52","gray32","gray16"))+
+  theme_classic()+
+  ylim(0, 400) +
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")+
+  theme(legend.position="none")+
+  geom_vline(xintercept = 617, col="grey", linetype = "longdash")
+
+
+PindDplot <- ggplot(data = Example2[Example2$spp=="vridspan",], aes(x = wl,
+                                        y = Reflectance, 
+                                        colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=c("gray52","gray32","gray16",
+                               "gray52","gray32","gray16"))+
+  theme_classic()+
+  ylim(0, 850) +
+  ylab("Reflectance (%)")+
+  xlab("wavelength (nm)")+
+  theme(legend.position="none")+
+  geom_vline(xintercept = 534, col="grey", linetype = "longdash")
+  
+```
+
+
+
 
 ## Fig 3. Diversity in VIS
 
@@ -1973,7 +2041,7 @@ Example3 <-
   
 ggplot(data = Example3, aes(x = wl, y = Reflectance, group = spp ))+
   geom_line()+
-  theme_bw()+
+  theme_classic()+
   facet_wrap(~ spp)+
   ylim(0, 60) +
   ylab("Reflectance (%)")+
@@ -2003,13 +2071,82 @@ ggplot(data = Example4, aes(x = wl, y = Reflectance, colour = angle ))+
   theme_bw()+
   facet_wrap(~ spp,  scales = "free")+
   ylab("Reflectance (%)")+
-  xlab("wavelength (nm)")
+  xlab("Wavelength (nm)")
+
 
 ```
+
+To produce a plot of 4 pannels we need to use grid.extra.
+
+```{r}
+
+A.aurplot<- ggplot(data = Example4[Example4$spp=="aursbsec",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray16","gray52"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,2000) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+C.freplot<- ggplot(data = Example4[Example4$spp=="fchibsec",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray16","gray52"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,600)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+A.latplot <- ggplot(data = Example4[Example4$spp=="latsbsec",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray16","gray52"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,400)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+A.praplot <- ggplot(data = Example4[Example4$spp=="prsibsec",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray16","gray52"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,100)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+grid.arrange(A.aurplot,
+             C.freplot,
+             A.latplot,
+             A.praplot,
+             ncol = 2)
+
+```
+
+
 
 Directional reflectance - Specularity
 
 ```{r}
+names(Example5)
+unique(Example5$spp)
 
 Example5<-
   FixSpan %>% # from the fixed span set 
@@ -2035,6 +2172,81 @@ ggplot(data = Example5, aes(x = wl, y = Reflectance, colour = angle ))+
 ```
 
 
+To produce a plot of 4 pannels we need to use grid.extra.
+
+```{r}
+
+A.aurplotN<- ggplot(data =
+                      Example5[Example5$spp=="aursspan",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(
+    c("gray52", "gray32","gray16"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,2000) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+C.freplotN<- ggplot(data =
+                      Example5[Example5$spp=="fchispan",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(
+    c("gray52","gray32","gray16"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,600)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+A.latplotN <- ggplot(data =
+                       Example5[Example5$spp=="latsspan",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(
+    c("gray52","gray32","gray16"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,400)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+A.praplotN <- ggplot(data =
+                       Example5[Example5$spp=="prsispan",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(
+    c("gray52","gray32","gray16"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,100)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+grid.arrange(A.aurplotN,
+             C.freplotN,
+             A.latplotN,
+             A.praplotN,
+             ncol = 2)
+
+```
+
+
+
+
 ## Fig 4. Diversity in NIR
 
 The examples show different magnitudes of NIR iridescence and NIR specularity
@@ -2057,6 +2269,10 @@ ggplot(data = Example6, aes(x = wl, y = Reflectance, group = spp ))+
   xlab("wavelength (nm)")
 
 ```
+
+
+
+
 
 Directional reflectance - Iridescence
 
@@ -2084,6 +2300,75 @@ ggplot(data = Example7, aes(x = wl, y = Reflectance, colour = angle ))+
 
 ```
 
+
+
+To produce a plot of 4 pannels we need to use grid.extra.
+
+```{r}
+
+nirA.aurplot<- ggplot(data = Example7[Example7$spp=="aursbsec",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray16","gray52"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,2000) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+nirC.freplot<- ggplot(data = Example7[Example7$spp=="fchibsec",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray16","gray52"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,600)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+nirA.latplot <- ggplot(data = Example7[Example7$spp=="latsbsec",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray16","gray52"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,800)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+nirA.praplot <- ggplot(data = Example7[Example7$spp=="prsibsec",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(c("gray16","gray52"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,150)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+grid.arrange(nirA.aurplot,
+             nirC.freplot,
+             nirA.latplot,
+             nirA.praplot,
+             ncol = 2)
+
+```
+
+
+
+
 Directional reflectance - Specularity
 
 ```{r}
@@ -2110,6 +2395,81 @@ ggplot(data = Example8, aes(x = wl, y = Reflectance, colour = angle ))+
   xlab("wavelength (nm)")
 
 ```
+
+
+To produce a plot of 4 pannels we need to use grid.extra.
+
+```{r}
+
+nirA.aurplotN<- ggplot(data =
+                      Example8[Example8$spp=="aursspan",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(
+    c("gray52", "gray32","gray16"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,2000) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+nirC.freplotN<- ggplot(data =
+                      Example8[Example8$spp=="fchispan",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(
+    c("gray52","gray32","gray16"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,600)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+nirA.latplotN <- ggplot(data =
+                       Example8[Example8$spp=="latsspan",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(
+    c("gray52","gray32","gray16"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,800)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank())+
+  theme(axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+nirA.praplotN <- ggplot(data =
+                       Example8[Example8$spp=="prsispan",], aes(x = wl, y = Reflectance, colour = angle ))+
+  geom_line()+
+  scale_colour_manual(values=rep(
+    c("gray52","gray32","gray16"),8))+
+  theme_bw()+
+  ylab("Reflectance (%)")+
+  xlab("Wavelength (nm)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ylim(0,150)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.title.y=element_blank())+
+  theme(legend.position="none")
+
+grid.arrange(nirA.aurplotN,
+             nirC.freplotN,
+             nirA.latplotN,
+             nirA.praplotN,
+             ncol = 2)
+
+```
+
+
 
 
 # Table 3 -  Correlations
